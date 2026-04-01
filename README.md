@@ -224,7 +224,7 @@ CREATE TABLE devolucoes (
 
 ## 👨‍💻 Desenvolvido por
 
-**DIO Challenge** - Projeto de Sistema de Devoluções
+Projeto de Sistema de Devoluções
 
 - Versão Desktop: PySide6 (Qt)
 - Versão Web: Flask
