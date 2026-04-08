@@ -1,4 +1,4 @@
-from Projeto.database import criar, inserir, listar
+from app.database import criar, inserir, listar
 
 
 def main():
@@ -13,7 +13,11 @@ def main():
             "patrimonio": "PT-1001",
             "modelo": "Dell Latitude 5410",
             "serial": "SN123456789",
-            "status": "Concluída"
+            "status": "OK",
+            "tipo": "Notebook",
+            "marca": "Dell",
+            "motivo": "Desligamento",
+            "foto": None,
         },
         {
             "usuario": "mariana.rodrigues",
@@ -23,7 +27,11 @@ def main():
             "patrimonio": "PT-1002",
             "modelo": "HP ProBook 450",
             "serial": "SN987654321",
-            "status": "Em análise"
+            "status": "Pendente",
+            "tipo": "Notebook",
+            "marca": "HP",
+            "motivo": "Troca de equipamento",
+            "foto": None,
         },
         {
             "usuario": "pedro.santos",
@@ -33,7 +41,11 @@ def main():
             "patrimonio": "PT-1003",
             "modelo": "Lenovo ThinkPad T14",
             "serial": "SN456789123",
-            "status": "Aguardando entrega"
+            "status": "Danificado",
+            "tipo": "Notebook",
+            "marca": "Lenovo",
+            "motivo": "Tela quebrada",
+            "foto": None,
         },
         {
             "usuario": "sara.lima",
@@ -43,8 +55,12 @@ def main():
             "patrimonio": "PT-1004",
             "modelo": "Acer Aspire 5",
             "serial": "SN321654987",
-            "status": "Devolvido"
-        }
+            "status": "OK",
+            "tipo": "Notebook",
+            "marca": "Acer",
+            "motivo": "Desligamento",
+            "foto": None,
+        },
     ]
 
     for item in amostras:

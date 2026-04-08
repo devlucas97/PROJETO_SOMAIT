@@ -1,5 +1,5 @@
 PySide6==6.7.1
-pywin32==306
+pywin32==306; platform_system == "Windows"
 Flask==3.0.0
 Werkzeug==3.0.1
 openpyxl==3.1.2

@@ -1,26 +1,24 @@
 import os
 import sys
-import logging
 
-from Projeto.database import criar
+from app.logging_config import get_logger
+from app.database import criar
 
-logger = logging.getLogger(__name__)
-if not logger.hasHandlers():
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
-    logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+logger = get_logger(__name__)
 
 
 def run_flask():
+    host = os.getenv("FLASK_HOST", "127.0.0.1")
+    port = int(os.getenv("FALLBACK_FLASK_PORT", os.getenv("FLASK_PORT", "5001")))
+    debug = os.getenv("FLASK_DEBUG", "true").strip().lower() in {"1", "true", "yes", "on"}
     logger.info("Iniciando servidor Flask (fallback)...")
-    from Projeto.web import app as flask_app
-    flask_app.run(debug=True, host="127.0.0.1", port=5001)
+    from app.web import app as flask_app
+    flask_app.run(debug=debug, host=host, port=port)
 
 
 def run_qt():
     from PySide6.QtWidgets import QApplication
-    from Projeto.ui_main import MainWindow
+    from app.ui_main import MainWindow
 
     logger.info("Tentando iniciar interface Qt...")
     app = QApplication(sys.argv)

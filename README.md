@@ -1,247 +1,192 @@
-# 📱 Sistema de Devoluções de Notebook
+# SOMALABS — Gestão de Devoluções e Ativos
 
-Sistema completo para gerenciamento de devoluções e incidentes com notebooks. Suporta interface desktop (Qt) no Windows e versão web (Flask) em qualquer plataforma.
+Sistema corporativo para gerenciamento de devoluções de equipamentos de TI, com dashboard executivo, fluxo Dell, evidências fotográficas, integração com planilha Excel e rascunhos de e-mail via Outlook.
 
-## ✨ Funcionalidades
+---
 
-- ✅ Registro de devoluções com status (OK, Danificado, Pendente)
-- 📧 Notificações automáticas por email (Windows com Outlook)
-- 📸 Upload de fotos de danos
-- 📊 Histórico completo de devoluções
-- 💾 Banco de dados SQLite integrado
-- 🎨 Interface amigável (Desktop Qt ou Web Flask)
-- 📝 Logging completo de operações
+## Funcionalidades
 
-## 📋 Requisitos
+| Recurso | Descrição |
+|---------|-----------|
+| **Dashboard executivo** | KPIs, filtros por status/data/texto, paginação |
+| **Registro de devoluções** | Formulário completo com campos corporativos |
+| **Fluxo Dell** | Workflow dedicado (cotação → reparo → conclusão) |
+| **Evidências fotográficas** | Upload, visualização e validação de fotos de dano |
+| **Integração Excel** | Sincronização automática com planilha corporativa (3 abas) |
+| **E-mails via Outlook** | Rascunhos automáticos para RH, Dell e responsáveis (Windows) |
+| **Banco SQLite** | Armazenamento local, sem dependência de servidor |
+| **Interface Qt (legado)** | Desktop com fallback automático para web |
 
-### Windows (Desktop)
-- Python 3.8+
-- Outlook instalado e configurado
+---
 
-### Linux/Mac (Web)
-- Python 3.8+
-- Qualquer navegador web moderno
+## Estrutura do Projeto
 
-## 🚀 Instalação
-
-### 1. Clonar/Baixar o projeto
-
-```bash
-cd projeto_dio
+```
+PROJETO_SOMAIT/
+│
+├── main.py                         # Ponto de entrada (Qt + fallback web)
+├── config.json                     # Configurações de integração (runtime)
+├── requirements.txt                # Dependências Python
+├── .env.example                    # Variáveis de ambiente (template)
+├── .gitignore                      # Arquivos ignorados pelo Git
+├── README.md                       # Esta documentação
+│
+├── app/                            # Pacote principal da aplicação
+│   ├── __init__.py
+│   ├── web.py                      # Aplicação Flask (rotas, views, API)
+│   ├── database.py                 # Camada de dados (SQLite + Excel)
+│   ├── email_service.py            # Integração Outlook COM (Windows)
+│   ├── ui_main.py                  # Interface Qt (legado)
+│   ├── logging_config.py           # Configuração de logging
+│   ├── static/
+│   │   └── css/
+│   │       └── app.css             # Estilos da interface web
+│   └── templates/
+│       ├── base.html               # Template base (header, footer)
+│       ├── login.html              # Tela de login
+│       ├── index.html              # Dashboard principal
+│       ├── nova.html               # Formulário de nova devolução
+│       ├── editar.html             # Formulário de edição
+│       ├── configuracoes.html      # Painel de configurações
+│       └── visualizar_foto.html    # Visualizador de foto
+│
+├── scripts/                        # Utilitários e scripts auxiliares
+│   ├── seed_database.py            # Popular banco com dados de teste
+│   ├── iniciar_web_windows.bat     # Inicializador Windows (duplo clique)
+│   └── main.spec                   # Configuração PyInstaller (.exe)
+│
+├── tests/                          # Testes automatizados (pytest)
+│   ├── test_database.py            # Testes da camada de dados
+│   └── test_web.py                 # Testes da aplicação web
+│
+└── uploads/                        # Fotos de dano (gerado em runtime)
 ```
 
-### 2. Criar ambiente virtual
+---
+
+## Requisitos
+
+| Plataforma | Requisitos |
+|------------|------------|
+| **Windows** | Python 3.10+, Outlook clássico (para e-mails), navegador moderno |
+| **Linux / Mac / Container** | Python 3.10+, navegador moderno |
+
+> **Nota:** A integração com Outlook (COM) funciona exclusivamente no Windows.
+
+---
+
+## Instalação
 
 ```bash
+# 1. Clonar o repositório
+git clone <url-do-repositorio>
+cd PROJETO_SOMAIT
+
+# 2. Criar ambiente virtual
 python -m venv .venv
-```
 
-### 3. Ativar ambiente virtual
-
-**Windows:**
-```bash
+# 3. Ativar ambiente virtual
+# Windows:
 .venv\Scripts\activate
-```
-
-**Linux/Mac:**
-```bash
+# Linux/Mac:
 source .venv/bin/activate
-```
 
-### 4. Instalar dependências
-
-```bash
+# 4. Instalar dependências
 pip install -r requirements.txt
 ```
 
-> **Nota sobre Windows:** Se encontrar erros com `pywin32`, execute:
+> Se houver problemas com `pywin32` no Windows:
 > ```bash
 > python -m pip install --upgrade pywin32
-> python -m pip install --upgrade pyinstaller
 > ```
 
 ---
 
-## 💻 Execução
+## Execução
 
-### Opção 1: Interface Desktop (Windows)
+### Web (recomendado)
 
-Executa a aplicação gráfica Qt com suporte a Outlook:
+```bash
+python -m app.web
+```
+
+Acesse: **http://127.0.0.1:5000**
+
+Login padrão: `admin` / `azzas2026`
+
+No Windows, também é possível usar duplo clique em `scripts/iniciar_web_windows.bat`.
+
+### Desktop Qt (legado)
 
 ```bash
 python main.py
 ```
 
-**Funcionalidades:**
-- Interface gráfica confortável
-- Upload direto de fotos com preview
-- Envio de emails via Outlook integrado
-- Histórico visual em tabela
+Detecta automaticamente se há ambiente gráfico. Caso contrário, inicia o servidor web como fallback.
 
-### Opção 2: Versão Web (Qualquer plataforma)
+---
 
-Executa servidor Flask e abre no navegador:
+## Dados de teste
 
 ```bash
-python web.py
+python scripts/seed_database.py
 ```
 
-Em seguida, acesse: **http://127.0.0.1:5000**
-
-**Funcionalidades:**
-- Acesso via navegador web
-- Mesmo banco de dados (SQLite)
-- Formulário responsivo
-- Compatível com Linux, Mac e Windows
-- Email funciona em Windows (com Outlook local)
+Insere registros de exemplo para validar dashboard, filtros e sincronização.
 
 ---
 
-## 📁 Estrutura do Projeto
+## Configuração
 
-```
-projeto_dio/
-├── main.py               # Entrada para versão Desktop (Qt)
-├── web.py               # Servidor Flask (Web)
-├── database.py          # Lógica de banco de dados
-├── email_service.py     # Funções de email (Outlook)
-├── ui_main.py           # Interface gráfica (Qt)
-├── seed_database.py     # Script para popular DB com dados de teste
-├── requirements.txt     # Dependências do projeto
-├── README.md           # Este arquivo
-├── database.db         # Banco SQLite (criado automaticamente)
-├── uploads/            # Fotos de danos (criada automaticamente)
-└── templates/
-    ├── index.html      # Página inicial (Web)
-    └── nova.html       # Formulário de nova devolução (Web)
-```
+### Variáveis de ambiente
 
----
-
-## 🧪 Testando com Dados Fictícios
-
-Para preencher o banco com dados de teste:
+Copie `.env.example` para `.env` e ajuste os valores:
 
 ```bash
-python seed_database.py
+cp .env.example .env
 ```
 
-Isso criará 4 registros de exemplo no banco de dados para você testar toda a funcionalidade.
+### Planilha Excel
 
----
+Em **Configurações** na interface web, informe o caminho da planilha corporativa. No Windows:
 
-## 📧 Configuração de Email
-
-### Windows (Desktop)
-Outlook deve estar instalado e configurado com conta de email. O `email_service.py` usa COM (Component Object Model) para integração nativa:
-
-```python
-import win32com.client as win32
-outlook = win32.Dispatch("outlook.application")
+```
+C:\Users\seu.usuario\Downloads\devolucoes.xlsx
 ```
 
-### Linux/Mac (Web)
-Email **não funciona** em modo web no Linux/Mac (restrição de plataforma). A aplicação registra a devolução normalmente, mas email é opcional e não bloqueia.
+> Caminhos Windows são bloqueados em ambiente Linux/container por segurança.
+
+### E-mail (Windows)
+
+O Outlook clássico deve estar instalado e configurado. Abra-o ao menos uma vez antes de usar a integração.
 
 ---
 
-## 🐛 Troubleshooting
+## Testes
 
-### "libGL.so.1: cannot open shared object file" (Linux/Mac)
-**Solução:** Use a versão Web (`python web.py`) em vez da Desktop.
-
-### "Outlook não iniciado" (Windows)
-**Solução:** Verifique se Outlook está instalado e configurado. Abra Outlook manualmente primeira vez.
-
-### ImportError: No module named 'win32com' (Linux/Mac)
-**Solução:** Normal - `pywin32` é Windows-only. Use a versão Web.
-
-### Falha ao salvar foto
-**Solução:** Verifique permissões da pasta `uploads/`. Crie manualmente se necessário.
-
----
-
-## 📝 Campos do Formulário
-
-| Campo | Descrição | Obrigatório |
-|-------|-----------|------------|
-| Usuário | Nome de usuário (login) | ✅ Sim |
-| Nome Completo | Nome da pessoa | ✅ Sim |
-| Matrícula | ID do funcionário | ✅ Sim |
-| Departamento | Setor da empresa | ✅ Sim |
-| Patrimônio | ID/Número do notebook | ✅ Sim |
-| Modelo | Dell, HP, Lenovo, etc | ✅ Sim |
-| Serial | Número de série do device | ✅ Sim |
-| Status | OK / Danificado / Pendente | ✅ Sim |
-| Motivo | Descrição do problema | ❌ Não |
-| Foto | Comprovação de dano | ❌ Não |
-
----
-
-## 📊 Banco de Dados
-
-Tabela `devolucoes`:
-```sql
-sqlite> .schema devolucoes
-CREATE TABLE devolucoes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    data TEXT,
-    usuario TEXT,
-    nome TEXT,
-    matricula TEXT,
-    departamento TEXT,
-    patrimonio TEXT,
-    modelo TEXT,
-    serial TEXT,
-    status TEXT,
-    motivo TEXT
-);
+```bash
+python -m pytest tests/ -q
 ```
 
 ---
 
-## 🔐 Segurança
+## Troubleshooting
 
-- ✅ Validação de campos obrigatórios
-- ✅ Tratamento de exceções em operações críticas
-- ✅ Logging completo de ações
-- ✅ Isolamento de erros de email (não bloqueia DB)
-- ❌ **Não produção:** Usar senha forte em `app.secret_key` (web.py)
-
----
-
-## 📈 Próximas Melhorias (Opcional)
-
-- [ ] Autenticação de usuário (login)
-- [ ] Editar/Deletar registros
-- [ ] Exportar dados (CSV, PDF)
-- [ ] Integração com LDAP para usuários corporativos
-- [ ] Dashboard com estatísticas
-- [ ] Notificações por SMS
-- [ ] Deploy em servidor (Docker, AWS, Heroku)
+| Problema | Solução |
+|----------|---------|
+| E-mails não funcionam | Rode no Windows host com Outlook configurado |
+| Planilha não sincroniza no Linux | Use caminho acessível no container, não `C:\...` |
+| `libGL.so.1: cannot open shared object file` | Use `python -m app.web` em vez do modo Qt |
+| `No module named 'win32com'` (Linux/Mac) | Esperado — use a versão web sem Outlook |
+| Falha ao salvar foto | Verifique permissões da pasta `uploads/` |
 
 ---
 
-## 👨‍💻 Desenvolvido por
+## Segurança
 
-Projeto de Sistema de Devoluções
-
-- Versão Desktop: PySide6 (Qt)
-- Versão Web: Flask
-- Banco: SQLite
-- Email: win32com (Outlook/Windows)
-
----
-
-## 📄 Licença
-
-MIT License - Livre para usar e modificar.
-
----
-
-## 📞 Suporte
-
-Para erros ou dúvidas:
-1. Verifique os logs no console
-2. Consulte `troubleshooting` acima
-3. Abra uma issue no GitHub
+- Login obrigatório com hash de senha (werkzeug)
+- Validação de campos obrigatórios no servidor
+- Sanitização de nomes de arquivo para uploads
+- Validação de MIME-type para imagens
+- Bloqueio de caminhos incompatíveis com o ambiente
+- Tratamento de exceções em operações críticas

@@ -1,21 +1,25 @@
 import os
 import sys
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QFileDialog
-import getpass
-import logging
-from PySide6.QtWidgets import *
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
+    QFormLayout, QStackedWidget, QPushButton, QLineEdit,
+    QRadioButton, QLabel, QTableWidget, QTableWidgetItem,
+    QHeaderView, QMessageBox, QFileDialog,
+)
 from PySide6.QtCore import Qt
- 
-from Projeto.database import inserir, listar
-from Projeto.email_service import enviar_email, email_dano
+import getpass
 
-logger = logging.getLogger(__name__)
-if not logger.hasHandlers():
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
-    logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+from app.logging_config import get_logger
+from app.database import inserir, listar
+from app.email_service import enviar_email, email_dano
+
+logger = get_logger(__name__)
+
+UPLOAD_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads"
+)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
  
  
 class MainWindow(QMainWindow):
@@ -96,6 +100,12 @@ class MainWindow(QMainWindow):
         self.label_foto.setStyleSheet("border: 1px solid gray;")
         layout.addRow("", self.label_foto)
 
+        btn_processar = QPushButton("Processar Devolução")
+        btn_processar.clicked.connect(self.processar)
+        layout.addRow("", btn_processar)
+
+        return widget
+
     def create_hist_page(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
@@ -121,12 +131,12 @@ class MainWindow(QMainWindow):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
  
         for row, linha in enumerate(dados):
-            self.table.setItem(row, 0, QTableWidgetItem(linha[1]))
-            self.table.setItem(row, 1, QTableWidgetItem(linha[3]))
-            self.table.setItem(row, 2, QTableWidgetItem(linha[6]))
-            self.table.setItem(row, 3, QTableWidgetItem(linha[7]))
-            self.table.setItem(row, 4, QTableWidgetItem(linha[9]))
-            self.table.setItem(row, 5, QTableWidgetItem(linha[2]))
+            self.table.setItem(row, 0, QTableWidgetItem(linha.get("data", "")))
+            self.table.setItem(row, 1, QTableWidgetItem(linha.get("nome", "")))
+            self.table.setItem(row, 2, QTableWidgetItem(linha.get("patrimonio", "")))
+            self.table.setItem(row, 3, QTableWidgetItem(linha.get("modelo", "")))
+            self.table.setItem(row, 4, QTableWidgetItem(linha.get("status", "")))
+            self.table.setItem(row, 5, QTableWidgetItem(linha.get("usuario", "")))
  
     # --------------------------
     # Ações
@@ -146,6 +156,8 @@ class MainWindow(QMainWindow):
  
         dados["usuario"] = usuario
         dados["status"] = "Danificado" if self.status_dano.isChecked() else "OK"
+
+        inserir(dados)
  
         # Salvar foto localmente se houver
         if self.caminho_foto and dados["status"] == "Danificado":

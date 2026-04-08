@@ -1,16 +1,13 @@
-import os
 import sqlite3
 import openpyxl
 import pytest
-import Projeto.database as database
+import app.database as database
 
 
 @pytest.fixture(autouse=True)
 def temp_db(monkeypatch, tmp_path):
     db_file = tmp_path / "test_database.db"
-    excel_file = tmp_path / "test_devolucoes.xlsx"
     monkeypatch.setattr(database, "DB", str(db_file))
-    monkeypatch.setattr(database, "EXCEL_FILE", str(excel_file))
     database.criar()
     yield
     # cleanup is automatic with tmp_path
@@ -35,30 +32,118 @@ def test_inserir_e_listar():
 
     assert len(resultados) == 1
     registro = resultados[0]
-    assert registro[3] == "Test User"
-    assert registro[8] == "SN0001"
+    assert registro["nome"] == "Test User"
+    assert registro["serial"] == "SN0001"
 
 
-def test_exportar_para_excel():
+def test_alimenta_planilha_existente(monkeypatch, tmp_path):
+    """O sistema cria as 3 abas automaticamente na planilha configurada."""
+    planilha = tmp_path / "empresa.xlsx"
+    # Arquivo não precisa existir — sistema cria automaticamente
+
+    monkeypatch.setattr(database, "PLANILHA_EMPRESA", str(planilha))
+
     dados = {
         "usuario": "test.user",
         "nome": "Test User",
         "matricula": "12345",
         "departamento": "TI",
-        "patrimonio": "PT-0002",
+        "patrimonio": "PT-0099",
         "modelo": "ModeloX",
-        "serial": "SN0002",
-        "status": "Danificado",
-        "motivo": "Teste export",
+        "serial": "SN0099",
+        "status": "Devolvido",
+        "motivo": "Teste planilha existente",
         "foto": None,
     }
-    database.inserir(dados)
-    assert os.path.exists(database.EXCEL_FILE)
 
-    wb = openpyxl.load_workbook(database.EXCEL_FILE)
-    assert "Devolucoes" in wb.sheetnames
-    ws = wb["Devolucoes"]
-    # header + 1 registro
-    assert ws.max_row == 2
-    assert ws["A2"].value == 1
-    assert ws["C2"].value == "test.user"  # usuario
+    database.inserir(dados)
+
+    wb2 = openpyxl.load_workbook(planilha)
+
+    # 3 abas criadas automaticamente
+    assert "Devoluções" in wb2.sheetnames
+    assert "Resumo por Status" in wb2.sheetnames
+    assert "Dell Danificados" in wb2.sheetnames
+
+    ws = wb2["Devoluções"]
+    # Linha 1 = título, linha 2 = cabeçalho, linha 3 = primeiro registro
+    assert ws.max_row == 3
+    # Coluna D = "LOGIN DE REDE" = usuario
+    assert ws["D3"].value == "test.user"
+    # Coluna K = "TAG" = patrimonio
+    assert ws["K3"].value == "PT-0099"
+    # Coluna G = "MODELO"
+    assert ws["G3"].value == "ModeloX"
+
+
+def test_alimenta_planilha_com_mapeamento_configuravel(monkeypatch, tmp_path):
+    """Múltiplos registros são todos gravados; a aba Resumo conta corretamente."""
+    planilha = tmp_path / "empresa_multi.xlsx"
+
+    monkeypatch.setattr(database, "PLANILHA_EMPRESA", str(planilha))
+
+    for i, status in enumerate(["OK", "Danificado", "OK"], 1):
+        database.inserir({
+            "usuario": f"user{i}",
+            "nome": f"Colaborador {i}",
+            "matricula": str(1000 + i),
+            "departamento": "TI",
+            "patrimonio": f"PT-{i:04d}",
+            "modelo": "Modelo",
+            "serial": f"SN{i:04d}",
+            "status": status,
+            "motivo": "Teste",
+            "foto": None,
+        })
+
+    wb2 = openpyxl.load_workbook(planilha)
+
+    ws_dev = wb2["Devoluções"]
+    # Linha 1 = título, linha 2 = cabeçalho, linhas 3-5 = 3 registros
+    assert ws_dev.max_row == 5
+
+    ws_res = wb2["Resumo por Status"]
+    # Verifica que "OK" aparece com contagem 2
+    resumo = {ws_res.cell(row=r, column=1).value: ws_res.cell(row=r, column=2).value
+              for r in range(2, ws_res.max_row + 1)}
+    assert resumo.get("OK") == 2
+    assert resumo.get("Danificado") == 1
+
+
+def test_diagnostica_caminho_windows_incompativel_no_linux(monkeypatch):
+    caminho_windows = r"C:\Compartilhado\TI\Devolucoes.xlsx"
+    monkeypatch.setattr(database, "PLANILHA_EMPRESA", caminho_windows)
+
+    diagnostico = database.diagnosticar_config_planilha()
+
+    if database.os.name != "nt":
+        assert diagnostico["ok"] is False
+        assert diagnostico["bloqueada"] is True
+        assert "Linux" in diagnostico["ambiente"]
+    else:
+        assert diagnostico["bloqueada"] is False
+
+
+def test_nao_cria_arquivo_local_com_caminho_windows_no_linux(monkeypatch, tmp_path):
+    caminho_windows = r"C:\Compartilhado\TI\Devolucoes.xlsx"
+    monkeypatch.setattr(database, "PLANILHA_EMPRESA", caminho_windows)
+    monkeypatch.chdir(tmp_path)
+
+    dados = {
+        "usuario": "test.user",
+        "nome": "Test User",
+        "matricula": "12345",
+        "departamento": "TI",
+        "patrimonio": "PT-0200",
+        "modelo": "ModeloX",
+        "serial": "SN0200",
+        "status": "OK",
+        "motivo": "Teste bloqueio caminho",
+        "foto": None,
+    }
+
+    database.inserir(dados)
+
+    if database.os.name != "nt":
+        assert not (tmp_path / caminho_windows).exists()
+
