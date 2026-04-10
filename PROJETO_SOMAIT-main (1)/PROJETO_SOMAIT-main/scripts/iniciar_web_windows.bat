@@ -13,7 +13,7 @@ set "PY_CMD="
 set "VENV_LOCAL=.venv\Scripts"
 set "VENV_PARENT=..\.venv\Scripts"
 
-)if exist "%VENV_LOCAL%\python.exe" (
+if exist "%VENV_LOCAL%\python.exe" (
     set "PY_CMD=%VENV_LOCAL%\python.exe"
 ) else if exist "%VENV_PARENT%\python.exe" (
     set "PY_CMD=%VENV_PARENT%\python.exe"

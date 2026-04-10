@@ -12,11 +12,17 @@ def client(monkeypatch, tmp_path):
     import app.web as web
 
     with web.app.test_client() as c:
-        # Simula sessão autenticada
+        # Simula sessão autenticada com token CSRF
         with c.session_transaction() as sess:
             sess["autenticado"] = True
             sess["usuario_logado"] = "test"
+            sess["_csrf_token"] = "test_csrf_token"
         yield c
+
+
+def _with_csrf(data: dict) -> dict:
+    """Adiciona token CSRF aos dados do formulário de teste."""
+    return {**data, "_csrf_token": "test_csrf_token"}
 
 
 def test_index_sem_dados(client):
@@ -52,7 +58,7 @@ def test_nova_devolucao_persiste_registro(client, monkeypatch):
 
     response = client.post(
         "/nova",
-        data={
+        data=_with_csrf({
             "usuario": "joao.silva",
             "nome": "Joao Silva",
             "matricula": "12345",
@@ -75,7 +81,7 @@ def test_nova_devolucao_persiste_registro(client, monkeypatch):
             "movido_para_estoque": "Sim",
             "email_responsavel": "responsavel@empresa.com",
             "gestor_email": "gestor@empresa.com",
-        },
+        }),
         follow_redirects=False,
     )
 
@@ -101,7 +107,7 @@ def test_nova_devolucao_ok_abre_apenas_email_rh(client, monkeypatch):
 
     response = client.post(
         "/nova",
-        data={
+        data=_with_csrf({
             "usuario": "joao.silva",
             "nome": "Joao Silva",
             "matricula": "12345",
@@ -114,7 +120,7 @@ def test_nova_devolucao_ok_abre_apenas_email_rh(client, monkeypatch):
             "diretoria": "Operacoes",
             "tipo": "Notebook",
             "marca": "Dell",
-        },
+        }),
         follow_redirects=False,
     )
 
@@ -134,7 +140,7 @@ def test_nova_devolucao_danificado_abre_email_dell_e_rh(client, monkeypatch):
 
     response = client.post(
         "/nova",
-        data={
+        data=_with_csrf({
             "usuario": "joao.silva",
             "nome": "Joao Silva",
             "matricula": "12345",
@@ -147,7 +153,7 @@ def test_nova_devolucao_danificado_abre_email_dell_e_rh(client, monkeypatch):
             "diretoria": "Operacoes",
             "tipo": "Notebook",
             "marca": "Dell",
-        },
+        }),
         follow_redirects=False,
     )
 
@@ -167,7 +173,7 @@ def test_nova_devolucao_exibe_aviso_quando_excel_esta_bloqueado(client, monkeypa
 
     response = client.post(
         "/nova",
-        data={
+        data=_with_csrf({
             "usuario": "joao.silva",
             "nome": "Joao Silva",
             "matricula": "12345",
@@ -180,7 +186,7 @@ def test_nova_devolucao_exibe_aviso_quando_excel_esta_bloqueado(client, monkeypa
             "diretoria": "Operacoes",
             "tipo": "Notebook",
             "marca": "Dell",
-        },
+        }),
         follow_redirects=True,
     )
 

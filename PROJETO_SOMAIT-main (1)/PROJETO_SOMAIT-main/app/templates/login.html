@@ -273,6 +273,7 @@
         <div class="login-card">
             <div class="form-title">&#128274; Autenticação Interna</div>
             <form method="POST">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                 <div class="form-group">
                     <label for="usuario">Usuário</label>
                     <input type="text" id="usuario" name="usuario" placeholder="Seu usuário corporativo" autocomplete="username" autofocus required>

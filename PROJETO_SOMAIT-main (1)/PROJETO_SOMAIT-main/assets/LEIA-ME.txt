@@ -1,0 +1,8 @@
+Coloque aqui o arquivo app.ico para personalizar o ícone da aplicação desktop.
+
+Requisitos:
+- Nome: app.ico
+- Formato: ICO (Windows icon)
+- Tamanhos recomendados: 16x16, 32x32, 48x48, 256x256
+
+Sem este arquivo, a aplicação usa o ícone padrão do sistema.

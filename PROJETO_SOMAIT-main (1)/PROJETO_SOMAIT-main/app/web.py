@@ -1,10 +1,12 @@
 import json
 import os
+import secrets
+import time
 import functools
 from collections import Counter
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    flash, send_from_directory, session,
+    flash, send_from_directory, session, abort,
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -60,12 +62,30 @@ del _raw_password
 # Paginação
 REGISTROS_POR_PAGINA = int(os.getenv("REGISTROS_POR_PAGINA", "30"))
 
+# ── Proteção CSRF ────────────────────────────────────────────────
+def _gerar_csrf_token():
+    if "_csrf_token" not in session:
+        session["_csrf_token"] = secrets.token_hex(32)
+    return session["_csrf_token"]
+
+
+@app.before_request
+def _verificar_csrf():
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return
+    token = request.form.get("_csrf_token") or request.headers.get("X-CSRF-Token")
+    if not token or token != session.get("_csrf_token"):
+        logger.warning("CSRF token inválido para %s %s", request.method, request.path)
+        abort(403)
+
+
 @app.context_processor
 def inject_brand_context():
     return {
         "brand_name": BRAND_NAME,
         "brand_area": BRAND_AREA,
         "brand_product": BRAND_PRODUCT,
+        "csrf_token": _gerar_csrf_token(),
     }
 
 
@@ -193,6 +213,26 @@ _log_security_startup_warnings()
 
 
 # ── Autenticação ─────────────────────────────────────────────────
+LOGIN_MAX_TENTATIVAS = int(os.getenv("LOGIN_MAX_TENTATIVAS", "5"))
+LOGIN_BLOQUEIO_SEGUNDOS = int(os.getenv("LOGIN_BLOQUEIO_SEGUNDOS", "60"))
+_login_tentativas: dict[str, list] = {}  # ip -> [timestamps]
+
+
+def _login_bloqueado(ip: str) -> bool:
+    """Retorna True se o IP excedeu o limite de tentativas."""
+    agora = time.monotonic()
+    tentativas = _login_tentativas.get(ip, [])
+    # Manter apenas tentativas dentro da janela
+    tentativas = [t for t in tentativas if agora - t < LOGIN_BLOQUEIO_SEGUNDOS]
+    _login_tentativas[ip] = tentativas
+    return len(tentativas) >= LOGIN_MAX_TENTATIVAS
+
+
+def _registrar_tentativa_login(ip: str):
+    agora = time.monotonic()
+    _login_tentativas.setdefault(ip, []).append(agora)
+
+
 def login_required(f):
     @functools.wraps(f)
     def decorated(*args, **kwargs):
@@ -208,13 +248,20 @@ def login():
     if session.get("autenticado"):
         return redirect(url_for("index"))
     if request.method == "POST":
+        ip = request.remote_addr or "unknown"
+        if _login_bloqueado(ip):
+            flash(f"Muitas tentativas. Aguarde {LOGIN_BLOQUEIO_SEGUNDOS}s e tente novamente.", "error")
+            logger.warning("Login bloqueado por rate limit: %s", ip)
+            return render_template("login.html"), 429
         usuario = request.form.get("usuario", "").strip()
         senha   = request.form.get("senha", "")
         if usuario == APP_USERNAME and check_password_hash(APP_PASSWORD_HASH, senha):
             session["autenticado"] = True
             session["usuario_logado"] = usuario
+            _login_tentativas.pop(ip, None)
             logger.info("Login bem-sucedido: %s", usuario)
             return redirect(url_for("index"))
+        _registrar_tentativa_login(ip)
         flash("Usuário ou senha incorretos.", "error")
     return render_template("login.html")
 

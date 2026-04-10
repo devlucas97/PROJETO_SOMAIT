@@ -97,8 +97,7 @@
             <div class="card-sub">Parâmetros de comunicação e integração corporativa da operação.</div>
         </div>
         <div class="card-body">
-            <form method="POST">
-
+            <form method="POST">                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                 <!-- ── Email ───────────────────────────────────── -->
                 <div class="section-label">&#9993; E-mail</div>
 
@@ -164,6 +163,7 @@
                 </p>
                 <form method="POST" action="{{ url_for('sincronizar_planilha') }}"
                       onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Sincronizando…';">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="btn" style="
                         background: linear-gradient(135deg,#065f46,#059669);
                         color:white;box-shadow:0 2px 10px rgba(6,95,70,0.3);

@@ -166,6 +166,7 @@
         </div>
         <div class="form-body">
             <form method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
 
                 <!-- ── SEÇÃO 1: LOCALIZAÇÃO ─────────────────────────── -->
                 <div class="section-label">&#127970; Localização / Identificação</div>

@@ -592,11 +592,12 @@ def listar_filtrado(status=None, busca=None, data_inicio=None, data_fim=None):
             )
             params.extend([like] * 12)
         if data_inicio:
-            query += " AND data >= ?"
+            # data armazenada como dd/mm/YYYY HH:MM; converter para YYYY-MM-DD para comparação
+            query += " AND substr(data,7,4)||'-'||substr(data,4,2)||'-'||substr(data,1,2) >= ?"
             params.append(data_inicio)
         if data_fim:
-            query += " AND data <= ?"
-            params.append(data_fim + " 23:59")
+            query += " AND substr(data,7,4)||'-'||substr(data,4,2)||'-'||substr(data,1,2) <= ?"
+            params.append(data_fim)
         query += " ORDER BY id DESC"
         rows = conn.execute(query, params).fetchall()
     return [_row_to_dict(r) for r in rows]
