@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurações | AZZAS</title>
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; min-height: 100vh; display: flex; flex-direction: column; color: #334155; font-size: 14px; }
+        .header { background: linear-gradient(135deg, #0f172a 0%, #1a2e6c 100%); color: white; padding: 16px 0; box-shadow: 0 2px 16px rgba(0,0,0,0.35); }
+        .header-inner { max-width: 1440px; margin: 0 auto; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; }
+        .logo { font-size: 20px; font-weight: 800; letter-spacing: 3px; display: flex; align-items: center; gap: 10px; }
+        .logo-accent { color: #3b82f6; }
+        .logo-divider { width: 2px; height: 20px; background: rgba(255,255,255,0.2); border-radius: 2px; }
+        .logo-mod { font-size: 13px; font-weight: 400; color: #94a3b8; letter-spacing: 1px; }
+        .logo-sub { font-size: 11px; color: #64748b; margin-top: 3px; }
+        .header-right { display: flex; align-items: center; gap: 10px; }
+        .header-badge { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: #94a3b8; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+        .btn-logout { background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.3); color: #fca5a5; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 500; text-decoration: none; }
+        .btn-logout:hover { background: rgba(220,38,38,0.3); }
+        .main { flex: 1; max-width: 800px; width: 100%; margin: 36px auto; padding: 0 20px; }
+        .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; margin-bottom: 20px; }
+        .breadcrumb a { color: #1e40af; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .alerts { margin-bottom: 16px; }
+        .alert { display: flex; align-items: flex-start; gap: 8px; padding: 11px 14px; border-radius: 8px; margin-bottom: 8px; font-size: 13px; font-weight: 500; border-left: 4px solid; }
+        .alert.success { background: #d1fae5; color: #065f46; border-left-color: #059669; }
+        .alert.error   { background: #fee2e2; color: #7f1d1d; border-left-color: #dc2626; }
+        .alert.warning { background: #fef3c7; color: #78350f; border-left-color: #d97706; }
+        .alert.info    { background: #dbeafe; color: #1e3a8a; border-left-color: #3b82f6; }
+        .card { background: white; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 2px 16px rgba(0,0,0,0.06); overflow: hidden; }
+        .card-header { padding: 20px 28px; border-bottom: 1px solid #e2e8f0; background: linear-gradient(135deg, #0f172a 0%, #1a2e6c 100%); color: white; }
+        .card-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+        .card-sub { font-size: 12px; color: #94a3b8; }
+        .card-body { padding: 28px; }
+        .section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #64748b; padding-bottom: 8px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 18px; margin-top: 24px; }
+        .section-label:first-child { margin-top: 0; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+        label { font-size: 12px; font-weight: 600; color: #0f172a; }
+        input[type="text"], input[type="email"] {
+            padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 7px;
+            font-size: 13px; font-family: inherit; color: #0f172a; background: #f8fafc;
+            transition: all 0.2s; width: 100%;
+        }
+        input:focus { outline: none; border-color: #3b82f6; background: white; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+        .help { font-size: 11px; color: #64748b; margin-top: 3px; }
+        .info-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #1e3a8a; margin-bottom: 18px; line-height: 1.6; }
+        .runtime-box { border-radius: 8px; padding: 12px 16px; font-size: 12px; margin-bottom: 18px; line-height: 1.7; border: 1px solid; }
+        .runtime-box.success { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+        .runtime-box.error { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+        .runtime-box.info { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+        .actions { display: flex; gap: 12px; justify-content: flex-end; padding-top: 20px; border-top: 1px solid #e2e8f0; margin-top: 8px; }
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 22px; border-radius: 7px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; text-decoration: none; transition: all 0.2s; }
+        .btn-primary { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; box-shadow: 0 2px 10px rgba(30,64,175,0.3); }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(30,64,175,0.4); }
+        .btn-ghost { background: white; color: #334155; border: 1.5px solid #e2e8f0; }
+        .btn-ghost:hover { background: #f8fafc; }
+        footer { background: white; border-top: 1px solid #e2e8f0; padding: 12px 28px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #64748b; }
+        .footer-brand { font-weight: 600; color: #0f172a; }
+    </style>
+</head>
+<body>
+
+<header class="header">
+    <div class="header-inner">
+        <div>
+            <div class="logo">AZZAS<span class="logo-accent">.</span><span class="logo-divider"></span><span class="logo-mod">Tech</span></div>
+            <div class="logo-sub">Sistema de Gestão de Devoluções de Equipamentos</div>
+        </div>
+        <div class="header-right">
+            <span class="header-badge">&#9881; Configurações</span>
+            <a href="{{ url_for('logout') }}" class="btn-logout">&#128682; Sair</a>
+        </div>
+    </div>
+</header>
+
+<main class="main">
+    <nav class="breadcrumb">
+        <a href="{{ url_for('index') }}">&#127968; Início</a>
+        <span>›</span>
+        <span>Configurações</span>
+    </nav>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="alerts">
+                {% for category, message in messages %}
+                    <div class="alert {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">&#9881; Configurações do Sistema</div>
+            <div class="card-sub">Parâmetros de comunicação e integração corporativa da operação.</div>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+
+                <!-- ── Email ───────────────────────────────────── -->
+                <div class="section-label">&#9993; E-mail</div>
+
+                <div class="info-box">
+                    O sistema envia automaticamente rascunhos no Outlook a cada devolução:<br>
+                    <strong>1.</strong> Email para o <strong>RH</strong> com dados do colaborador.<br>
+                    <strong>2.</strong> Email para a <strong>Dell</strong> quando a devolução estiver marcada como <strong>Danificado</strong>.
+                </div>
+
+                <div class="form-group">
+                    <label for="email_rh">E-mail do RH</label>
+                    <input type="email" id="email_rh" name="email_rh"
+                           value="{{ cfg.get('email_rh', 'rh@somagrupo.com.br') }}"
+                           placeholder="rh@somagrupo.com.br" autocomplete="off">
+                    <span class="help">Destinatário do comunicado de devolução enviado ao RH via Outlook.</span>
+                </div>
+
+                <!-- ── Planilha Corporativa ────────────────────── -->
+                <div class="section-label">&#128202; Planilha Corporativa Excel</div>
+
+                <div class="info-box">
+                    Informe apenas o <strong>caminho do arquivo</strong> — o sistema cuida do resto automaticamente:<br>
+                    &#10003; Cria o arquivo se não existir &nbsp;·&nbsp;
+                    &#10003; Cria e gerencia as abas sem configuração<br><br>
+                    As <strong>3 abas</strong> são mantidas automaticamente a cada devolução adicionada, editada ou excluída:<br>
+                    <strong>1. Devoluções</strong> — todos os registros com cores por situação<br>
+                    <strong>2. Resumo por Status</strong> — contagem consolidada por situação<br>
+                    <strong>3. Dell Danificados</strong> — apenas equipamentos Dell danificados / em reparo<br><br>
+                    <strong>Exemplo:</strong> <code>C:\Compartilhado\TI\Devolucoes.xlsx</code><br>
+                    Deixe em branco para desabilitar a sincronização automática.
+                </div>
+
+                {% if planilha_diag and planilha_diag.get('caminho') %}
+                <div class="runtime-box {{ planilha_diag.get('nivel', 'info') }}">
+                    <strong>Ambiente atual:</strong> {{ planilha_diag.get('ambiente') }}<br>
+                    <strong>Status da integração:</strong> {{ planilha_diag.get('mensagem') }}<br>
+                    <strong>Caminho informado:</strong> {{ planilha_diag.get('caminho') }}<br>
+                    {{ planilha_diag.get('detalhe') }}
+                </div>
+                {% endif %}
+
+                <div class="form-group">
+                    <label for="planilha_empresa">Caminho da Planilha</label>
+                    <input type="text" id="planilha_empresa" name="planilha_empresa"
+                           value="{{ cfg.get('planilha_empresa', '') }}"
+                           placeholder="Ex: C:\Compartilhado\TI\Devolucoes.xlsx" autocomplete="off">
+                    <span class="help">Caminho completo do arquivo .xlsx. O arquivo e as abas são criados automaticamente.</span>
+                </div>
+
+                <div class="actions">
+                    <a href="{{ url_for('index') }}" class="btn btn-ghost">&#8592; Voltar</a>
+                    <button type="submit" class="btn btn-primary">&#10003; Salvar Configurações</button>
+                </div>
+            </form>
+
+            <!-- ── Sincronizar Agora ───────────────────────── -->
+            {% if cfg.get('planilha_empresa') %}
+            <div style="margin-top:28px;padding-top:24px;border-top:1px solid #e2e8f0;">
+                <div class="section-label">&#128257; Sincronização Manual</div>
+                <p style="font-size:13px;color:#475569;margin-bottom:16px;">
+                    Força a reescrita completa da planilha corporativa com todos os registros atuais do banco.
+                    Use quando houver necessidade de reconciliação manual ou validação operacional após alterações em lote.
+                </p>
+                <form method="POST" action="{{ url_for('sincronizar_planilha') }}"
+                      onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Sincronizando…';">
+                    <button type="submit" class="btn" style="
+                        background: linear-gradient(135deg,#065f46,#059669);
+                        color:white;box-shadow:0 2px 10px rgba(6,95,70,0.3);
+                    ">&#128257; Sincronizar Planilha Agora</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</main>
+
+<footer>
+    <span class="footer-brand">AZZAS</span>
+    <span>Sistema de Gestão de Devoluções &nbsp;·&nbsp; TI Corporativo</span>
+    <span>&copy; 2026 — Acesso restrito</span>
+</footer>
+
+</body>
+</html>

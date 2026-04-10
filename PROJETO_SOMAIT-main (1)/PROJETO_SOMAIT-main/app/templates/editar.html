@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar Devolução #{{ r.id }} | AZZAS</title>
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --brand-dark:  #0f172a; --brand-blue:  #1e40af; --brand-light: #3b82f6;
+            --green: #059669; --red: #dc2626; --red-bg: #fee2e2; --red-text: #7f1d1d;
+            --amber: #d97706; --amber-bg: #fef3c7; --amber-text: #78350f;
+            --page-bg: #f1f5f9; --border: #e2e8f0; --gray-500: #64748b; --gray-700: #334155; --radius: 10px;
+        }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--page-bg); min-height: 100vh; display: flex; flex-direction: column; color: var(--gray-700); font-size: 14px; }
+        .header { background: linear-gradient(135deg, #0f172a 0%, #1a2e6c 100%); color: white; padding: 16px 0; box-shadow: 0 2px 16px rgba(0,0,0,0.35); }
+        .header-inner { max-width: 1440px; margin: 0 auto; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; }
+        .logo { font-size: 20px; font-weight: 800; letter-spacing: 3px; display: flex; align-items: center; gap: 10px; }
+        .logo-accent { color: #3b82f6; }
+        .logo-divider { width: 2px; height: 20px; background: rgba(255,255,255,0.2); border-radius: 2px; }
+        .logo-mod { font-size: 13px; font-weight: 400; color: #94a3b8; letter-spacing: 1px; }
+        .logo-sub { font-size: 11px; color: #64748b; letter-spacing: 0.5px; margin-top: 3px; }
+        .header-right { display: flex; align-items: center; gap: 10px; }
+        .header-badge { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: #94a3b8; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+        .btn-logout { background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.3); color: #fca5a5; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 500; text-decoration: none; transition: all 0.2s; }
+        .btn-logout:hover { background: rgba(220,38,38,0.3); }
+        .main { flex: 1; max-width: 900px; width: 100%; margin: 32px auto; padding: 0 20px; }
+        .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--gray-500); margin-bottom: 20px; }
+        .breadcrumb a { color: var(--brand-blue); text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .alerts { margin-bottom: 20px; }
+        .alert { display: flex; align-items: flex-start; gap: 8px; padding: 11px 14px; border-radius: 8px; margin-bottom: 8px; font-size: 13px; font-weight: 500; border-left: 4px solid; }
+        .alert.error   { background: var(--red-bg);   color: var(--red-text);   border-left-color: var(--red); }
+        .alert.warning { background: var(--amber-bg); color: var(--amber-text); border-left-color: var(--amber); }
+        .alert.success { background: #d1fae5; color: #065f46; border-left-color: var(--green); }
+        .alert.info    { background: #dbeafe; color: #1e3a8a; border-left-color: var(--brand-light); }
+        .form-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 2px 16px rgba(0,0,0,0.06); overflow: hidden; }
+        .form-card-header { padding: 20px 28px; border-bottom: 1px solid var(--border); background: linear-gradient(135deg, #065f46 0%, #059669 100%); color: white; }
+        .form-card-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+        .form-card-sub { font-size: 12px; color: #a7f3d0; }
+        .form-body { padding: 28px; }
+        .section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--gray-500); padding-bottom: 8px; border-bottom: 1.5px solid var(--border); margin-bottom: 18px; margin-top: 26px; }
+        .section-label:first-child { margin-top: 0; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .form-grid .span2 { grid-column: 1 / -1; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        label { font-size: 12px; font-weight: 600; color: var(--brand-dark); letter-spacing: 0.3px; }
+        .req { color: var(--red); }
+        input[type="text"], input[type="email"], select, textarea {
+            padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 7px;
+            font-size: 13px; font-family: inherit; color: var(--brand-dark);
+            background: #f8fafc; transition: all 0.2s; width: 100%;
+        }
+        input[type="text"]:focus, input[type="email"]:focus, select:focus, textarea:focus {
+            outline: none; border-color: var(--brand-light); background: white;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+        textarea { resize: vertical; min-height: 72px; }
+        .help { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+        .info-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #166534; margin-bottom: 20px; }
+        .form-actions { display: flex; gap: 12px; justify-content: flex-end; padding-top: 24px; border-top: 1px solid var(--border); margin-top: 8px; }
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 22px; border-radius: 7px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; text-decoration: none; transition: all 0.2s; }
+        .btn-primary { background: linear-gradient(135deg, #065f46, #059669); color: white; box-shadow: 0 2px 10px rgba(5,150,105,0.3); }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(5,150,105,0.4); }
+        .btn-ghost { background: white; color: var(--gray-700); border: 1.5px solid var(--border); }
+        .btn-ghost:hover { background: #f8fafc; }
+        footer { background: white; border-top: 1px solid var(--border); padding: 12px 28px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--gray-500); flex-wrap: wrap; gap: 8px; }
+        .footer-brand { font-weight: 600; color: var(--brand-dark); }
+        @media (max-width: 700px) { .form-grid { grid-template-columns: 1fr; } .form-grid .span2 { grid-column: 1; } .form-actions { flex-direction: column-reverse; } .btn { width: 100%; justify-content: center; } }
+    </style>
+</head>
+<body>
+
+<header class="header">
+    <div class="header-inner">
+        <div>
+            <div class="logo">AZZAS<span class="logo-accent">.</span><span class="logo-divider"></span><span class="logo-mod">Tech</span></div>
+            <div class="logo-sub">Sistema de Gestão de Devoluções de Equipamentos</div>
+        </div>
+        <div class="header-right">
+            <span class="header-badge">&#128274; Interno &nbsp;·&nbsp; TI</span>
+            <a href="{{ url_for('logout') }}" class="btn-logout">&#128682; Sair</a>
+        </div>
+    </div>
+</header>
+
+<main class="main">
+    <nav class="breadcrumb">
+        <a href="{{ url_for('index') }}">&#127968; Início</a>
+        <span>&#8250;</span>
+        <span>Editar Registro #{{ r.id }}</span>
+    </nav>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="alerts">
+                {% for category, message in messages %}
+                    <div class="alert {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="info-box">
+        &#9998; Você está editando o registro <strong>#{{ r.id }}</strong> — registrado em <strong>{{ r.data }}</strong>.
+        A data de registro original não será alterada.
+    </div>
+
+    <div class="form-card">
+        <div class="form-card-header">
+            <div class="form-card-title">&#9998; Editar Devolução #{{ r.id }}</div>
+            <div class="form-card-sub">Campos marcados com <strong style="color:#a7f3d0">*</strong> são obrigatórios.</div>
+        </div>
+        <div class="form-body">
+            <form method="POST" enctype="multipart/form-data">
+
+                <!-- ── SEÇÃO 1: LOCALIZAÇÃO ─────────────────────────── -->
+                <div class="section-label">&#127970; Localização / Identificação</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="departamento">Setor <span class="req">*</span></label>
+                        <input type="text" id="departamento" name="departamento" value="{{ r.departamento or '' }}" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="diretoria">Diretoria</label>
+                        <input type="text" id="diretoria" name="diretoria" value="{{ r.diretoria or '' }}" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="usuario">Login de Rede <span class="req">*</span></label>
+                        <input type="text" id="usuario" name="usuario" value="{{ r.usuario or '' }}" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="matricula">Matrícula</label>
+                        <input type="text" id="matricula" name="matricula" value="{{ r.matricula or '' }}" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="unidade">Unidade</label>
+                        <input type="text" id="unidade" name="unidade" value="{{ r.unidade or '' }}" autocomplete="off">
+                    </div>
+                </div>
+
+                <!-- ── SEÇÃO 2: EQUIPAMENTO ─────────────────────────── -->
+                <div class="section-label">&#128187; Dados do Equipamento</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="tipo">Tipo <span class="req">*</span></label>
+                        <select id="tipo" name="tipo" required>
+                            <option value="">— Selecione —</option>
+                            {% for opt in ["Notebook","Desktop","Monitor","Tablet","Celular","Impressora","Roteador / Switch","Outro"] %}
+                                <option value="{{ opt }}" {% if r.tipo == opt %}selected{% endif %}>{{ opt }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="marca">Marca <span class="req">*</span></label>
+                        <input type="text" id="marca" name="marca" value="{{ r.marca or '' }}" required autocomplete="off">
+                    </div>
+                    <div class="form-group span2">
+                        <label for="modelo">Modelo <span class="req">*</span></label>
+                        <input type="text" id="modelo" name="modelo" value="{{ r.modelo or '' }}" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="serial">Serial / Service Tag</label>
+                        <input type="text" id="serial" name="serial" value="{{ r.serial or '' }}" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="processador">Processador</label>
+                        <input type="text" id="processador" name="processador" value="{{ r.processador or '' }}" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="memoria">Memória (RAM)</label>
+                        <input type="text" id="memoria" name="memoria" value="{{ r.memoria or '' }}" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="armazenamento">Armazenamento</label>
+                        <input type="text" id="armazenamento" name="armazenamento" value="{{ r.armazenamento or '' }}" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="patrimonio">TAG (Patrimônio) <span class="req">*</span></label>
+                        <input type="text" id="patrimonio" name="patrimonio" value="{{ r.patrimonio or '' }}" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="possui_carregador">Possui Carregador?</label>
+                        <select id="possui_carregador" name="possui_carregador">
+                            <option value="">— Selecione —</option>
+                            <option value="Sim" {% if r.possui_carregador == 'Sim' %}selected{% endif %}>Sim</option>
+                            <option value="Não" {% if r.possui_carregador == 'Não' %}selected{% endif %}>Não</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- ── SEÇÃO 3: DEVOLUÇÃO ───────────────────────────── -->
+                <div class="section-label">&#128203; Dados da Devolução</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="nome">Entregue Por <span class="req">*</span></label>
+                        <input type="text" id="nome" name="nome" value="{{ r.nome or '' }}" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="recebido_por">Recebido Por</label>
+                        <input type="text" id="recebido_por" name="recebido_por" value="{{ r.recebido_por or '' }}" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <!-- Toggle: deseja adicionar gestor em CC? -->
+                        <div id="gestor-toggle-wrap" style="
+                            background: #f0fdf4;
+                            border: 1.5px solid #bbf7d0;
+                            border-radius: 8px;
+                            padding: 13px 16px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 12px;
+                            cursor: pointer;
+                        " onclick="toggleGestorEmail()">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <span style="font-size:18px;">&#128101;</span>
+                                <div>
+                                    <div style="font-size:13px;font-weight:600;color:#166534;">Adicionar gestor em cópia (CC)</div>
+                                        <div style="font-size:11px;color:#64748b;margin-top:2px;">Campo opcional para registro interno</div>
+                                </div>
+                            </div>
+                            <div id="gestor-switch" style="
+                                width:44px;height:24px;border-radius:12px;
+                                background:#cbd5e1;transition:background 0.25s;
+                                position:relative;flex-shrink:0;
+                            ">
+                                <div id="gestor-switch-knob" style="
+                                    width:20px;height:20px;border-radius:50%;
+                                    background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);
+                                    position:absolute;top:2px;left:2px;
+                                    transition:left 0.25s;
+                                "></div>
+                            </div>
+                        </div>
+                        <div id="gestor-field-wrap" style="display:none;margin-top:10px;">
+                            <label for="gestor_email" style="font-size:12px;font-weight:600;color:#0f172a;">E-mail do Gestor</label>
+                            <input type="email" id="gestor_email" name="gestor_email"
+                                   value="{{ r.gestor_email or '' }}" autocomplete="off"
+                                   placeholder="gestor@somagrupo.com.br" style="margin-top:6px;">
+                            <span style="font-size:11px;color:#64748b;margin-top:4px;display:block;">Campo opcional para registro interno.</span>
+                        </div>
+                        <input type="hidden" id="gestor_email_hidden" name="gestor_email" value="">
+                    </div>
+                    <div class="form-group span2">
+                        <label for="email_responsavel">&#9993; E-mail de referência</label>
+                        <input type="email" id="email_responsavel" name="email_responsavel"
+                               value="{{ r.email_responsavel or '' }}" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="motivo">Motivo</label>
+                        <input type="text" id="motivo" name="motivo" value="{{ r.motivo or '' }}" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="movido_para_estoque">Movido para Estoque?</label>
+                        <select id="movido_para_estoque" name="movido_para_estoque">
+                            <option value="">— Selecione —</option>
+                            <option value="Sim" {% if r.movido_para_estoque == 'Sim' %}selected{% endif %}>Sim</option>
+                            <option value="Não" {% if r.movido_para_estoque == 'Não' %}selected{% endif %}>Não</option>
+                        </select>
+                    </div>
+                    <div class="form-group span2">
+                        <label for="observacoes">Observações</label>
+                        <textarea id="observacoes" name="observacoes">{{ r.observacoes or '' }}</textarea>
+                    </div>
+                </div>
+
+                <!-- ── SEÇÃO 4: SITUAÇÃO ────────────────────────────── -->
+                <div class="section-label">&#128200; Situação do Equipamento</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="status">Status de Conservação <span class="req">*</span></label>
+                        <select id="status" name="status" required>
+                            <option value="">— Selecione —</option>
+                            <option value="OK" {% if r.status == 'OK' %}selected{% endif %}>&#10003; OK — Funcionando</option>
+                            <option value="Danificado" {% if r.status == 'Danificado' %}selected{% endif %}>&#9888; Danificado</option>
+                            <option value="Pendente" {% if r.status == 'Pendente' %}selected{% endif %}>&#8987; Em Análise / Pendente</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="chamado_dell">Nº Chamado Dell / OS</label>
+                        <input type="text" id="chamado_dell" name="chamado_dell"
+                               value="{{ r.chamado_dell or '' }}" autocomplete="off"
+                               placeholder="Ex: 12345678">
+                        <span class="help">Número do chamado de reparo aberto junto à Dell.</span>
+                    </div>
+                </div>
+
+                <!-- ── SEÇÃO 5: FOTO ─────────────────────────────── -->
+                <div class="section-label">&#128247; Registro Fotográfico</div>
+                <div class="form-grid">
+                    <div class="form-group span2">
+                        {% if r.foto %}
+                        <div style="margin-bottom:12px;font-size:12px;color:var(--gray-500);">
+                            Foto atual: <a href="{{ url_for('visualizar_foto', filename=r.foto|basename) }}" style="color:var(--brand-blue);text-decoration:underline;">{{ r.foto|basename }}</a>
+                        </div>
+                        {% endif %}
+                        <label for="foto">{% if r.foto %}Substituir foto{% else %}Anexar foto{% endif %}</label>
+                        <input type="file" id="foto" name="foto" accept="image/*"
+                               style="padding:8px;border:1.5px dashed var(--border);border-radius:7px;background:#f8fafc;cursor:pointer;">
+                        <span class="help">PNG, JPG, JPEG ou WEBP · máx. 5 MB. Deixe em branco para manter a foto atual.</span>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <a href="{{ url_for('index') }}" class="btn btn-ghost">&#8592; Cancelar</a>
+                    <button type="submit" class="btn btn-primary">&#10003; Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+
+<footer>
+    <span class="footer-brand">AZZAS</span>
+    <span>Sistema de Gestão de Devoluções &nbsp;·&nbsp; TI Corporativo</span>
+    <span>&copy; 2026 — Acesso restrito</span>
+</footer>
+
+<script>
+    // Toggle de gestor em CC — inicia ligado se já havia e-mail salvo
+    let gestorAtivo = {{ 'true' if r.gestor_email else 'false' }};
+
+    function toggleGestorEmail() {
+        gestorAtivo = !gestorAtivo;
+        _aplicarEstadoGestor();
+    }
+
+    function _aplicarEstadoGestor() {
+        const wrap   = document.getElementById('gestor-field-wrap');
+        const sw     = document.getElementById('gestor-switch');
+        const knob   = document.getElementById('gestor-switch-knob');
+        const field  = document.getElementById('gestor_email');
+        const hidden = document.getElementById('gestor_email_hidden');
+        if (gestorAtivo) {
+            wrap.style.display  = 'block';
+            sw.style.background = '#22c55e';
+            knob.style.left     = '22px';
+            field.disabled      = false;
+            field.name          = 'gestor_email';
+            hidden.name         = '_gestor_off';
+        } else {
+            wrap.style.display  = 'none';
+            sw.style.background = '#cbd5e1';
+            knob.style.left     = '2px';
+            field.disabled      = true;
+            field.name          = '_gestor_off';
+            hidden.name         = 'gestor_email';
+        }
+    }
+
+    // Aplica estado inicial ao carregar a página
+    _aplicarEstadoGestor();
+</script>
+</body>
+</html>
