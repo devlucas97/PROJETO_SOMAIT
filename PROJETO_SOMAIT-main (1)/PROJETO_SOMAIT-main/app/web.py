@@ -8,25 +8,26 @@ from flask import (
     Flask, render_template, request, redirect, url_for,
     flash, send_from_directory, session, abort,
 )
-from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from app.logging_config import get_logger
-from app.runtime_paths import ensure_runtime_dir, get_bundle_path, iter_config_paths
+from app.runtime_paths import ensure_runtime_dir, get_bundle_path, get_runtime_path, iter_config_paths
 from app.database import (
     criar, inserir, listar, buscar_por_id,
-    estatisticas, listar_filtrado, atualizar, excluir,
+    estatisticas, listar_filtrado, contar_filtrado, atualizar, excluir,
     registrar_email_enviado, atualizar_chamado_dell,
     sincronizar_planilha_completa, diagnosticar_config_planilha,
     DELL_WF_STATUSES,
+    criar_usuario, autenticar_usuario, listar_usuarios,
+    desativar_usuario, reativar_usuario, alterar_senha, usuario_existe,
 )
 
 # Import com fallback para compatibilidade Linux/Windows
 try:
-    from app.email_service import enviar_email, email_dano, email_cotacao_dell, enviar_email_rh, OUTLOOK_DISPONIVEL, EMAIL_RH
+    from app.email_service import email_cotacao_dell, enviar_email_rh, OUTLOOK_DISPONIVEL, EMAIL_RH
 except ImportError:
     OUTLOOK_DISPONIVEL = False
     EMAIL_RH = "rh@somagrupo.com.br"
-    enviar_email = email_dano = email_cotacao_dell = enviar_email_rh = None
+    email_cotacao_dell = enviar_email_rh = None
 
 # Configuração de logging
 logger = get_logger(__name__)
@@ -50,14 +51,6 @@ BRAND_NAME = "SOMALABS"
 BRAND_AREA = "Operações de TI"
 BRAND_PRODUCT = "Gestão de Devoluções e Ativos"
 DEFAULT_APP_USERNAME = "admin"
-DEFAULT_APP_PASSWORD = "azzas2026"
-
-# Credenciais de acesso (variáveis de ambiente, com fallback seguro para dev)
-APP_USERNAME = os.getenv("APP_USERNAME", DEFAULT_APP_USERNAME)
-_raw_password = os.getenv("APP_PASSWORD", DEFAULT_APP_PASSWORD)
-# Armazena hash da senha em memória — nunca compare senhas em texto puro
-APP_PASSWORD_HASH = generate_password_hash(_raw_password)
-del _raw_password
 
 # Paginação
 REGISTROS_POR_PAGINA = int(os.getenv("REGISTROS_POR_PAGINA", "30"))
@@ -86,6 +79,8 @@ def inject_brand_context():
         "brand_area": BRAND_AREA,
         "brand_product": BRAND_PRODUCT,
         "csrf_token": _gerar_csrf_token(),
+        "usuario_admin": session.get("usuario_admin", False),
+        "usuario_nome": session.get("usuario_nome", ""),
     }
 
 
@@ -108,19 +103,43 @@ def _cfg():
 
 
 def _log_security_startup_warnings():
-    if APP_USERNAME == DEFAULT_APP_USERNAME:
-        logger.warning("APP_USERNAME está com o valor padrão. Defina credenciais próprias para uso contínuo.")
-    password_from_env = os.getenv("APP_PASSWORD")
-    if password_from_env is None:
-        logger.warning("APP_PASSWORD não foi definido no ambiente. A aplicação está usando a senha padrão de desenvolvimento.")
-    elif password_from_env == DEFAULT_APP_PASSWORD:
-        logger.warning("APP_PASSWORD está com o valor padrão de desenvolvimento. Troque a senha antes de compartilhar o acesso.")
     if app.secret_key == "chave_secreta_dev_2026":
         logger.warning("FLASK_SECRET_KEY está com o valor padrão de desenvolvimento. Gere uma chave própria para evitar sessões previsíveis.")
 
 
+def _seed_admin():
+    """Garante que o usuário admin do .env existe no banco ao iniciar."""
+    login = os.getenv("APP_USERNAME", DEFAULT_APP_USERNAME).strip().lower()
+    senha = os.getenv("APP_PASSWORD")
+    if not senha:
+        senha = secrets.token_urlsafe(16)
+        logger.warning(
+            "APP_PASSWORD não configurado no .env. "
+            "Senha temporária para o admin desta sessão: %s  "
+            "Configure APP_PASSWORD no arquivo .env antes de usar em produção.",
+            senha,
+        )
+    if not usuario_existe(login):
+        criar_usuario(login, "Administrador", senha, admin=True)
+        logger.info("Usuário admin '%s' criado no banco de dados.", login)
+    else:
+        # Atualiza senha do admin a cada startup para refletir o .env
+        from app.database import autenticar_usuario as _auth, alterar_senha as _alt
+        u = _auth(login, senha)
+        if u is None:
+            # Senha no .env mudou — atualiza no banco
+            from app.database import conectar as _con
+            with _con() as _conn:
+                row = _conn.execute("SELECT id FROM usuarios WHERE login = ?", (login,)).fetchone()
+            if row:
+                _alt(row["id"], senha)
+                logger.info("Senha do admin '%s' atualizada no banco conforme .env.", login)
+
+
 def _salvar_cfg(cfg):
-    with open(_CONFIG_FILE, "w", encoding="utf-8") as f:
+    config_file = next(iter(iter_config_paths()), get_runtime_path("config.json"))
+    os.makedirs(os.path.dirname(config_file), exist_ok=True)
+    with open(config_file, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
 
@@ -209,13 +228,26 @@ def _montar_painel_executivo(registros, busca="", status_filtro="", data_inicio=
 
 
 criar()
+_seed_admin()
 _log_security_startup_warnings()
 
 
 # ── Autenticação ─────────────────────────────────────────────────
 LOGIN_MAX_TENTATIVAS = int(os.getenv("LOGIN_MAX_TENTATIVAS", "5"))
 LOGIN_BLOQUEIO_SEGUNDOS = int(os.getenv("LOGIN_BLOQUEIO_SEGUNDOS", "60"))
+_LOGIN_MAX_IPS = 1024  # Limite de IPs rastreados para evitar vazamento de memória
 _login_tentativas: dict[str, list] = {}  # ip -> [timestamps]
+
+
+def _limpar_tentativas_expiradas():
+    """Remove IPs com todas as tentativas já expiradas para evitar crescimento ilimitado."""
+    agora = time.monotonic()
+    ips_expirados = [
+        ip for ip, ts in _login_tentativas.items()
+        if not any(agora - t < LOGIN_BLOQUEIO_SEGUNDOS for t in ts)
+    ]
+    for ip in ips_expirados:
+        del _login_tentativas[ip]
 
 
 def _login_bloqueado(ip: str) -> bool:
@@ -229,6 +261,9 @@ def _login_bloqueado(ip: str) -> bool:
 
 
 def _registrar_tentativa_login(ip: str):
+    # Limpeza periódica quando o dicionário cresce demais
+    if len(_login_tentativas) > _LOGIN_MAX_IPS:
+        _limpar_tentativas_expiradas()
     agora = time.monotonic()
     _login_tentativas.setdefault(ip, []).append(agora)
 
@@ -243,6 +278,19 @@ def login_required(f):
     return decorated
 
 
+def admin_required(f):
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("autenticado"):
+            flash("Faça login para continuar.", "warning")
+            return redirect(url_for("login"))
+        if not session.get("usuario_admin"):
+            flash("Acesso restrito a administradores.", "error")
+            return redirect(url_for("index"))
+        return f(*args, **kwargs)
+    return decorated
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("autenticado"):
@@ -253,13 +301,16 @@ def login():
             flash(f"Muitas tentativas. Aguarde {LOGIN_BLOQUEIO_SEGUNDOS}s e tente novamente.", "error")
             logger.warning("Login bloqueado por rate limit: %s", ip)
             return render_template("login.html"), 429
-        usuario = request.form.get("usuario", "").strip()
-        senha   = request.form.get("senha", "")
-        if usuario == APP_USERNAME and check_password_hash(APP_PASSWORD_HASH, senha):
-            session["autenticado"] = True
-            session["usuario_logado"] = usuario
+        usuario_input = request.form.get("usuario", "").strip()
+        senha_input   = request.form.get("senha", "")
+        user = autenticar_usuario(usuario_input, senha_input)
+        if user:
+            session["autenticado"]    = True
+            session["usuario_logado"] = user["login"]
+            session["usuario_nome"]   = user["nome"]
+            session["usuario_admin"]  = bool(user["admin"])
             _login_tentativas.pop(ip, None)
-            logger.info("Login bem-sucedido: %s", usuario)
+            logger.info("Login bem-sucedido: %s", user["login"])
             return redirect(url_for("index"))
         _registrar_tentativa_login(ip)
         flash("Usuário ou senha incorretos.", "error")
@@ -285,7 +336,7 @@ def index():
         data_fim     = request.args.get("data_fim", "").strip()
         pagina       = max(1, int(request.args.get("pagina", 1)))
 
-        todos = listar_filtrado(
+        filtro_kw = dict(
             status=status_filtro or None,
             busca=busca or None,
             data_inicio=data_inicio or None,
@@ -295,25 +346,35 @@ def index():
         if search_id:
             if search_id.isdigit():
                 id_busca = int(search_id)
-                todos = [registro for registro in todos if registro.get("id") == id_busca]
+                registro_id = buscar_por_id(id_busca)
+                todos_para_painel = [registro_id] if registro_id else []
+                total_registros = len(todos_para_painel)
+                total_paginas = 1
+                pagina = 1
+                dados = todos_para_painel
                 busca = busca or search_id
             else:
                 flash("O filtro por ID aceita apenas números inteiros.", "warning")
+                todos_para_painel = []
+                total_registros = 0
+                total_paginas = 1
+                dados = []
+        else:
+            total_registros = contar_filtrado(**filtro_kw)
+            total_paginas   = max(1, (total_registros + REGISTROS_POR_PAGINA - 1) // REGISTROS_POR_PAGINA)
+            pagina          = min(pagina, total_paginas)
+            inicio          = (pagina - 1) * REGISTROS_POR_PAGINA
+            dados           = listar_filtrado(**filtro_kw, limit=REGISTROS_POR_PAGINA, offset=inicio)
+            todos_para_painel = listar_filtrado(**filtro_kw)
 
         stats = estatisticas()
         painel_exec = _montar_painel_executivo(
-            todos,
+            todos_para_painel,
             busca=busca,
             status_filtro=status_filtro,
             data_inicio=data_inicio,
             data_fim=data_fim,
         )
-
-        total_registros = len(todos)
-        total_paginas   = max(1, (total_registros + REGISTROS_POR_PAGINA - 1) // REGISTROS_POR_PAGINA)
-        pagina          = min(pagina, total_paginas)
-        inicio          = (pagina - 1) * REGISTROS_POR_PAGINA
-        dados           = todos[inicio: inicio + REGISTROS_POR_PAGINA]
 
         logger.info("Listagem p.%d/%d (%d registros)", pagina, total_paginas, total_registros)
         return render_template(
@@ -372,6 +433,7 @@ def nova_devolucao():
                 "movido_para_estoque": request.form.get("movido_para_estoque"),
                 "email_responsavel":   request.form.get("email_responsavel"),
                 "gestor_email":        request.form.get("gestor_email"),
+                "registrado_por":      session.get("usuario_logado"),
             }
 
             campos_obrigatorios = ["departamento", "usuario", "tipo", "marca", "modelo", "patrimonio", "nome"]
@@ -418,12 +480,11 @@ def nova_devolucao():
                     cfg = _cfg()
                     email_rh_dest = cfg.get("email_rh") or EMAIL_RH
                     destino_log = "RH"
-                    if dados["status"] == "Danificado":
-                        email_dano(dados)
-                        destino_log = "Dell"
+                    if dados["status"] == "Danificado" and marca_lower == "dell":
+                        email_cotacao_dell(dados)
+                        destino_log = "Cotação Dell + RH"
+
                     enviar_email_rh(dados, para=email_rh_dest)
-                    if dados["status"] == "Danificado":
-                        destino_log += " + RH"
                     email_sync_error = registrar_email_enviado(novo_id, destino_log)
                     flash("Devolução registrada e rascunhos abertos no Outlook!", "success")
                     if email_sync_error:
@@ -603,6 +664,59 @@ def sincronizar_planilha():
         logger.error("Erro ao sincronizar planilha: %s", err)
         flash(f"❌ Erro ao sincronizar planilha: {err}", "error")
     return redirect(url_for("configuracoes"))
+
+
+# ── Gestão de usuários ───────────────────────────────────────────
+@app.route("/usuarios")
+@admin_required
+def usuarios():
+    return render_template("usuarios.html", usuarios=listar_usuarios())
+
+
+@app.route("/usuarios/novo", methods=["POST"])
+@admin_required
+def usuario_novo():
+    login  = request.form.get("login", "").strip()
+    nome   = request.form.get("nome", "").strip()
+    senha  = request.form.get("senha", "")
+    admin  = request.form.get("admin") == "1"
+    if not login or not nome or not senha:
+        flash("Login, nome e senha são obrigatórios.", "error")
+        return redirect(url_for("usuarios"))
+    try:
+        criar_usuario(login, nome, senha, admin=admin)
+        flash(f"Usuário '{login}' criado com sucesso.", "success")
+    except ValueError as e:
+        flash(str(e), "error")
+    return redirect(url_for("usuarios"))
+
+
+@app.route("/usuarios/<int:id_usuario>/desativar", methods=["POST"])
+@admin_required
+def usuario_desativar(id_usuario):
+    desativar_usuario(id_usuario)
+    flash("Usuário desativado.", "success")
+    return redirect(url_for("usuarios"))
+
+
+@app.route("/usuarios/<int:id_usuario>/reativar", methods=["POST"])
+@admin_required
+def usuario_reativar(id_usuario):
+    reativar_usuario(id_usuario)
+    flash("Usuário reativado.", "success")
+    return redirect(url_for("usuarios"))
+
+
+@app.route("/usuarios/<int:id_usuario>/senha", methods=["POST"])
+@admin_required
+def usuario_alterar_senha(id_usuario):
+    nova = request.form.get("nova_senha", "")
+    if len(nova) < 6:
+        flash("A senha deve ter ao menos 6 caracteres.", "error")
+        return redirect(url_for("usuarios"))
+    alterar_senha(id_usuario, nova)
+    flash("Senha alterada com sucesso.", "success")
+    return redirect(url_for("usuarios"))
 
 
 # ── Fotos ────────────────────────────────────────────────────────

@@ -167,3 +167,92 @@ def test_nao_cria_arquivo_local_com_caminho_windows_no_linux(monkeypatch, tmp_pa
     if database.os.name != "nt":
         assert not (tmp_path / caminho_windows).exists()
 
+
+def _criar_registro(overrides=None):
+    """Helper para criar um registro padrão."""
+    dados = {
+        "usuario": "test.user",
+        "nome": "Test User",
+        "matricula": "12345",
+        "departamento": "TI",
+        "patrimonio": "PT-0001",
+        "modelo": "Teste",
+        "serial": "SN0001",
+        "status": "OK",
+        "motivo": "Teste",
+        "foto": None,
+    }
+    if overrides:
+        dados.update(overrides)
+    return database.inserir(dados)
+
+
+def test_atualizar_registro():
+    reg = _criar_registro({"patrimonio": "PT-UP01", "status": "OK"})
+    database.atualizar(reg["id"], {
+        "usuario": "new.user",
+        "nome": "New Name",
+        "matricula": "99999",
+        "departamento": "RH",
+        "patrimonio": "PT-UP01",
+        "modelo": "NovoModelo",
+        "serial": "SN-NEW",
+        "status": "Danificado",
+        "motivo": "Atualizado",
+        "diretoria": "Corp",
+        "tipo": "Desktop",
+        "marca": "Lenovo",
+        "processador": "i7",
+        "memoria": "32 GB",
+        "armazenamento": "SSD 512",
+        "possui_carregador": "Não",
+        "recebido_por": "Analista",
+        "unidade": "SP",
+        "observacoes": "Obs",
+        "movido_para_estoque": "Sim",
+        "email_responsavel": "e@e.com",
+        "gestor_email": "g@e.com",
+        "chamado_dell": "12345",
+    })
+    atualizado = database.buscar_por_id(reg["id"])
+    assert atualizado["nome"] == "New Name"
+    assert atualizado["status"] == "Danificado"
+    assert atualizado["departamento"] == "RH"
+
+
+def test_excluir_registro():
+    reg = _criar_registro({"patrimonio": "PT-DEL"})
+    assert database.buscar_por_id(reg["id"]) is not None
+    database.excluir(reg["id"])
+    assert database.buscar_por_id(reg["id"]) is None
+
+
+def test_contar_filtrado():
+    _criar_registro({"patrimonio": "PT-C1", "status": "OK"})
+    _criar_registro({"patrimonio": "PT-C2", "status": "Danificado"})
+    _criar_registro({"patrimonio": "PT-C3", "status": "OK"})
+    assert database.contar_filtrado() == 3
+    assert database.contar_filtrado(status="OK") == 2
+    assert database.contar_filtrado(status="Danificado") == 1
+
+
+def test_listar_filtrado_com_paginacao():
+    for i in range(5):
+        _criar_registro({"patrimonio": f"PT-P{i}", "status": "OK"})
+    pagina1 = database.listar_filtrado(limit=2, offset=0)
+    pagina2 = database.listar_filtrado(limit=2, offset=2)
+    pagina3 = database.listar_filtrado(limit=2, offset=4)
+    assert len(pagina1) == 2
+    assert len(pagina2) == 2
+    assert len(pagina3) == 1
+    # Sem repetição entre páginas
+    ids = [r["id"] for r in pagina1 + pagina2 + pagina3]
+    assert len(ids) == len(set(ids))
+
+
+def test_registrar_email_enviado():
+    reg = _criar_registro({"patrimonio": "PT-EM01"})
+    database.registrar_email_enviado(reg["id"], "RH")
+    atualizado = database.buscar_por_id(reg["id"])
+    assert "→ RH" in atualizado["email_enviado_em"]
+

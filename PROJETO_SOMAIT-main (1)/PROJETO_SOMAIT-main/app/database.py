@@ -7,6 +7,7 @@ import re
 import unicodedata
 from collections import Counter
 
+from werkzeug.security import generate_password_hash, check_password_hash
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
@@ -138,18 +139,29 @@ def criar():
             chamado_dell        TEXT
         )
         """)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            login       TEXT UNIQUE NOT NULL,
+            nome        TEXT NOT NULL,
+            senha_hash  TEXT NOT NULL,
+            admin       INTEGER NOT NULL DEFAULT 0,
+            ativo       INTEGER NOT NULL DEFAULT 1,
+            criado_em   TEXT
+        )
+        """)
         conn.commit()
     _migrar()
 
 
 def _migrar():
-    """Adiciona colunas novas em bancos existentes (idempotente)."""
+    """Adiciona colunas novas e índices em bancos existentes (idempotente)."""
     novas = [
         "diretoria", "tipo", "marca", "processador", "memoria",
         "armazenamento", "possui_carregador", "recebido_por",
         "unidade", "observacoes", "movido_para_estoque",
         "email_responsavel", "email_enviado_em",
-        "gestor_email", "chamado_dell",
+        "gestor_email", "chamado_dell", "deletado_em", "registrado_por",
     ]
     with conectar() as conn:
         existentes = {
@@ -161,6 +173,14 @@ def _migrar():
                 # Nomes de coluna são literals controlados, não input de usuário
                 conn.execute(f"ALTER TABLE devolucoes ADD COLUMN {col} TEXT")
                 logger.info("Coluna adicionada ao banco: %s", col)
+        # Índices para acelerar buscas e filtros frequentes
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_devolucoes_status ON devolucoes(status)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_devolucoes_busca ON devolucoes("
+            "nome, patrimonio, usuario, departamento, modelo, serial, marca)"
+        )
         conn.commit()
 
 
@@ -500,7 +520,16 @@ def sincronizar_planilha_completa():
     )
 
     wb.active = wb["Devoluções"]
-    wb.save(planilha)
+    # Escrita atômica: grava em arquivo temporário e renomeia
+    tmp_planilha = planilha + ".tmp"
+    try:
+        wb.save(tmp_planilha)
+        os.replace(tmp_planilha, planilha)
+    except Exception:
+        # Remove temporário em caso de falha
+        if os.path.exists(tmp_planilha):
+            os.remove(tmp_planilha)
+        raise
     logger.info(
         "Planilha corporativa sincronizada: %d registro(s), %d Dell — '%s'",
         len(registros), len(dell_rows), planilha,
@@ -517,8 +546,9 @@ def inserir(dados):
             diretoria, tipo, marca, processador, memoria,
             armazenamento, possui_carregador, recebido_por,
             unidade, observacoes, movido_para_estoque,
-            email_responsavel, email_enviado_em, gestor_email, chamado_dell
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            email_responsavel, email_enviado_em, gestor_email, chamado_dell,
+            registrado_por
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             horario_brasilia.strftime("%d/%m/%Y %H:%M"),
             dados.get("usuario"), dados.get("nome"),
@@ -534,6 +564,7 @@ def inserir(dados):
             dados.get("movido_para_estoque"), dados.get("email_responsavel"),
             None,  # email_enviado_em
             dados.get("gestor_email"), dados.get("chamado_dell"),
+            dados.get("registrado_por"),
         ))
         novo_id = cursor.lastrowid
         conn.commit()
@@ -549,17 +580,19 @@ def inserir(dados):
 
 
 def listar():
-    """Retorna todas as devoluções como lista de dicts."""
+    """Retorna todas as devoluções ativas (não deletadas) como lista de dicts."""
     with conectar() as conn:
-        rows = conn.execute("SELECT * FROM devolucoes ORDER BY id DESC").fetchall()
+        rows = conn.execute(
+            "SELECT * FROM devolucoes WHERE deletado_em IS NULL ORDER BY id DESC"
+        ).fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
 def buscar_por_id(id_devolucao):
-    """Retorna um registro como dict ou None."""
+    """Retorna um registro ativo como dict ou None."""
     with conectar() as conn:
         row = conn.execute(
-            "SELECT * FROM devolucoes WHERE id = ?", (id_devolucao,)
+            "SELECT * FROM devolucoes WHERE id = ? AND deletado_em IS NULL", (id_devolucao,)
         ).fetchone()
     return _row_to_dict(row)
 
@@ -567,38 +600,58 @@ def buscar_por_id(id_devolucao):
 def estatisticas():
     """Retorna contagens por status para o dashboard executivo."""
     with conectar() as conn:
-        total = conn.execute("SELECT COUNT(*) FROM devolucoes").fetchone()[0]
-        ok = conn.execute("SELECT COUNT(*) FROM devolucoes WHERE status = ?", ("OK",)).fetchone()[0]
-        danificado = conn.execute("SELECT COUNT(*) FROM devolucoes WHERE status = ?", ("Danificado",)).fetchone()[0]
-        pendente = conn.execute("SELECT COUNT(*) FROM devolucoes WHERE status = ?", ("Pendente",)).fetchone()[0]
+        total      = conn.execute("SELECT COUNT(*) FROM devolucoes WHERE deletado_em IS NULL").fetchone()[0]
+        ok         = conn.execute("SELECT COUNT(*) FROM devolucoes WHERE status = ? AND deletado_em IS NULL", ("OK",)).fetchone()[0]
+        danificado = conn.execute("SELECT COUNT(*) FROM devolucoes WHERE status = ? AND deletado_em IS NULL", ("Danificado",)).fetchone()[0]
+        pendente   = conn.execute("SELECT COUNT(*) FROM devolucoes WHERE status = ? AND deletado_em IS NULL", ("Pendente",)).fetchone()[0]
     return {"total": total, "ok": ok, "danificado": danificado, "pendente": pendente}
 
 
-def listar_filtrado(status=None, busca=None, data_inicio=None, data_fim=None):
-    """Lista devoluções com filtros opcionais. Retorna lista de dicts."""
+def _construir_filtro(status=None, busca=None, data_inicio=None, data_fim=None):
+    """Constrói a cláusula WHERE e parâmetros para filtros reutilizáveis."""
+    where = "WHERE deletado_em IS NULL"
+    params = []
+    if status:
+        where += " AND status = ?"
+        params.append(status)
+    if busca:
+        like = f"%{busca}%"
+        where += (
+            " AND (nome LIKE ? OR matricula LIKE ? OR patrimonio LIKE ?"
+            " OR modelo LIKE ? OR serial LIKE ? OR usuario LIKE ? OR departamento LIKE ?"
+            " OR diretoria LIKE ? OR tipo LIKE ? OR marca LIKE ? OR recebido_por LIKE ?"
+            " OR unidade LIKE ?)"
+        )
+        params.extend([like] * 12)
+    if data_inicio:
+        where += " AND substr(data,7,4)||'-'||substr(data,4,2)||'-'||substr(data,1,2) >= ?"
+        params.append(data_inicio)
+    if data_fim:
+        where += " AND substr(data,7,4)||'-'||substr(data,4,2)||'-'||substr(data,1,2) <= ?"
+        params.append(data_fim)
+    return where, params
+
+
+def contar_filtrado(status=None, busca=None, data_inicio=None, data_fim=None):
+    """Retorna a contagem total de registros que atendem aos filtros."""
+    where, params = _construir_filtro(status, busca, data_inicio, data_fim)
     with conectar() as conn:
-        query = "SELECT * FROM devolucoes WHERE 1=1"
-        params = []
-        if status:
-            query += " AND status = ?"
-            params.append(status)
-        if busca:
-            like = f"%{busca}%"
-            query += (
-                " AND (nome LIKE ? OR matricula LIKE ? OR patrimonio LIKE ?"
-                " OR modelo LIKE ? OR serial LIKE ? OR usuario LIKE ? OR departamento LIKE ?"
-                " OR diretoria LIKE ? OR tipo LIKE ? OR marca LIKE ? OR recebido_por LIKE ?"
-                " OR unidade LIKE ?)"
-            )
-            params.extend([like] * 12)
-        if data_inicio:
-            # data armazenada como dd/mm/YYYY HH:MM; converter para YYYY-MM-DD para comparação
-            query += " AND substr(data,7,4)||'-'||substr(data,4,2)||'-'||substr(data,1,2) >= ?"
-            params.append(data_inicio)
-        if data_fim:
-            query += " AND substr(data,7,4)||'-'||substr(data,4,2)||'-'||substr(data,1,2) <= ?"
-            params.append(data_fim)
-        query += " ORDER BY id DESC"
+        total = conn.execute(f"SELECT COUNT(*) FROM devolucoes {where}", params).fetchone()[0]
+    return total
+
+
+def listar_filtrado(status=None, busca=None, data_inicio=None, data_fim=None,
+                    limit=None, offset=None):
+    """Lista devoluções com filtros opcionais e paginação SQL. Retorna lista de dicts."""
+    where, params = _construir_filtro(status, busca, data_inicio, data_fim)
+    query = f"SELECT * FROM devolucoes {where} ORDER BY id DESC"
+    if limit is not None:
+        query += " LIMIT ?"
+        params.append(limit)
+        if offset is not None:
+            query += " OFFSET ?"
+            params.append(offset)
+    with conectar() as conn:
         rows = conn.execute(query, params).fetchall()
     return [_row_to_dict(r) for r in rows]
 
@@ -663,9 +716,13 @@ def atualizar(id_devolucao, dados):
 
 
 def excluir(id_devolucao):
-    """Remove um registro pelo ID."""
+    """Marca um registro como deletado (soft delete) — não apaga do banco."""
+    agora = _agora_brasilia().strftime("%d/%m/%Y %H:%M")
     with conectar() as conn:
-        conn.execute("DELETE FROM devolucoes WHERE id = ?", (id_devolucao,))
+        conn.execute(
+            "UPDATE devolucoes SET deletado_em = ? WHERE id = ?",
+            (agora, id_devolucao),
+        )
         conn.commit()
 
     return _sincronizar_planilha_seguro("após exclusão")
@@ -694,3 +751,79 @@ def registrar_email_enviado(id_devolucao, destino):
         conn.commit()
 
     return _sincronizar_planilha_seguro("após registrar envio de email")
+
+
+# ── Gestão de usuários ────────────────────────────────────────────
+
+def criar_usuario(login, nome, senha, admin=False):
+    """Cria um novo usuário. Lança ValueError se o login já existir."""
+    login = login.strip().lower()
+    if not login or not nome or not senha:
+        raise ValueError("Login, nome e senha são obrigatórios.")
+    agora = _agora_brasilia().strftime("%d/%m/%Y %H:%M")
+    hash_senha = generate_password_hash(senha)
+    with conectar() as conn:
+        existente = conn.execute(
+            "SELECT id FROM usuarios WHERE login = ?", (login,)
+        ).fetchone()
+        if existente:
+            raise ValueError(f"Login '{login}' já existe.")
+        conn.execute(
+            "INSERT INTO usuarios (login, nome, senha_hash, admin, ativo, criado_em) VALUES (?, ?, ?, ?, 1, ?)",
+            (login, nome.strip(), hash_senha, 1 if admin else 0, agora),
+        )
+        conn.commit()
+
+
+def autenticar_usuario(login, senha):
+    """Retorna o dict do usuário se credenciais corretas e ativo, senão None."""
+    login = login.strip().lower()
+    with conectar() as conn:
+        row = conn.execute(
+            "SELECT * FROM usuarios WHERE login = ? AND ativo = 1", (login,)
+        ).fetchone()
+    if row and check_password_hash(row["senha_hash"], senha):
+        return _row_to_dict(row)
+    return None
+
+
+def listar_usuarios():
+    """Retorna todos os usuários como lista de dicts."""
+    with conectar() as conn:
+        rows = conn.execute(
+            "SELECT id, login, nome, admin, ativo, criado_em FROM usuarios ORDER BY admin DESC, nome"
+        ).fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+def desativar_usuario(id_usuario):
+    """Desativa um usuário (não permite login)."""
+    with conectar() as conn:
+        conn.execute("UPDATE usuarios SET ativo = 0 WHERE id = ?", (id_usuario,))
+        conn.commit()
+
+
+def reativar_usuario(id_usuario):
+    """Reativa um usuário desativado."""
+    with conectar() as conn:
+        conn.execute("UPDATE usuarios SET ativo = 1 WHERE id = ?", (id_usuario,))
+        conn.commit()
+
+
+def alterar_senha(id_usuario, nova_senha):
+    """Atualiza a senha de um usuário."""
+    with conectar() as conn:
+        conn.execute(
+            "UPDATE usuarios SET senha_hash = ? WHERE id = ?",
+            (generate_password_hash(nova_senha), id_usuario),
+        )
+        conn.commit()
+
+
+def usuario_existe(login):
+    """Retorna True se já existe um usuário com esse login."""
+    with conectar() as conn:
+        row = conn.execute(
+            "SELECT id FROM usuarios WHERE login = ?", (login.strip().lower(),)
+        ).fetchone()
+    return row is not None

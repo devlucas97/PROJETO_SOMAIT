@@ -802,6 +802,17 @@
         }
         .footer-brand { font-weight: 600; color: var(--brand-dark); }
 
+        /* Screen-reader-only */
+        .sr-only {
+            position: absolute;
+            width: 1px; height: 1px;
+            padding: 0; margin: -1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            white-space: nowrap;
+            border: 0;
+        }
+
         /* ── RESPONSIVE ─────────────────────────────── */
         @media (max-width: 768px) {
             .hero-grid,
@@ -834,8 +845,12 @@
             <div class="logo-sub">Sistema de Gestão de Devoluções de Equipamentos</div>
         </div>
         <div class="header-right">
+            {% if usuario_admin %}
+            <a href="{{ url_for('usuarios') }}" class="header-badge" style="text-decoration:none;color:#94a3b8;">&#128100; Usuários</a>
+            {% else %}
             <span class="header-badge">&#128274; Interno &nbsp;·&nbsp; TI</span>
-            <span class="user-chip">&#128100; {{ session.get('usuario_logado', 'Operador') }}</span>
+            {% endif %}
+            <span class="user-chip">&#128100; {{ usuario_nome or session.get('usuario_logado', 'Operador') }}</span>
             <a href="{{ url_for('logout') }}" class="btn-logout">&#128682; Sair</a>
         </div>
     </div>
@@ -961,20 +976,24 @@
         <div class="toolbar">
             <div class="toolbar-left">
                 <div class="search-wrap">
-                    <span class="search-ico">&#128269;</span>
-                    <input type="text" name="busca" placeholder="Buscar por setor, login, tag, modelo…"
+                    <span class="search-ico" aria-hidden="true">&#128269;</span>
+                    <label for="busca-input" class="sr-only">Buscar</label>
+                    <input id="busca-input" type="text" name="busca" placeholder="Buscar por setor, login, tag, modelo…"
                            value="{{ busca or '' }}" autocomplete="off">
                 </div>
-                <select name="status">
+                <label for="status-select" class="sr-only">Filtrar por status</label>
+                <select id="status-select" name="status">
                     <option value="">Todos os status</option>
                     <option value="OK"         {% if status_filtro == 'OK' %}selected{% endif %}>&#10003; OK</option>
                     <option value="Danificado" {% if status_filtro == 'Danificado' %}selected{% endif %}>&#9888; Danificado</option>
                     <option value="Pendente"   {% if status_filtro == 'Pendente' %}selected{% endif %}>&#8987; Pendente</option>
                 </select>
                 <span class="date-sep">De</span>
-                <input type="date" name="data_inicio" value="{{ data_inicio or '' }}" title="Data inicial">
+                <label for="data-inicio" class="sr-only">Data inicial</label>
+                <input id="data-inicio" type="date" name="data_inicio" value="{{ data_inicio or '' }}" title="Data inicial">
                 <span class="date-sep">até</span>
-                <input type="date" name="data_fim" value="{{ data_fim or '' }}" title="Data final">
+                <label for="data-fim" class="sr-only">Data final</label>
+                <input id="data-fim" type="date" name="data_fim" value="{{ data_fim or '' }}" title="Data final">
                 <button type="submit" class="btn btn-primary">Filtrar</button>
                 {% if busca or status_filtro or data_inicio or data_fim %}
                     <a href="{{ url_for('index') }}" class="btn btn-ghost">&#10005; Limpar</a>
@@ -1127,6 +1146,7 @@
                         <th>Situação</th>
                         <th>Nº Chamado Dell</th>
                         <th>Email Enviado</th>
+                        <th>Registrado Por</th>
                         <th>Foto</th>
                         <th>Ações</th>
                     </tr>
@@ -1134,39 +1154,39 @@
                 <tbody>
                     {% for r in dados %}
                     <tr>
-                        <td class="td-id">#{{ r.id }}</td>
-                        <td class="td-date">{{ r.data }}</td>
-                        <td>{{ r.departamento or '—' }}</td>
-                        <td class="td-muted">{{ r.diretoria or '—' }}</td>
-                        <td>{{ r.usuario or '—' }}</td>
-                        <td>{{ r.tipo or '—' }}</td>
-                        <td>{{ r.marca or '—' }}</td>
-                        <td><strong>{{ r.modelo or '—' }}</strong></td>
-                        <td class="td-muted">{{ r.processador or '—' }}</td>
-                        <td class="td-muted">{{ r.memoria or '—' }}</td>
-                        <td class="td-muted">{{ r.armazenamento or '—' }}</td>
-                        <td>{{ r.patrimonio or '—' }}</td>
-                        <td class="td-muted">{{ r.possui_carregador or '—' }}</td>
-                        <td>{{ r.nome or '—' }}</td>
-                        <td class="td-muted">{{ r.recebido_por or '—' }}</td>
-                        <td class="td-muted">{{ r.motivo or '—' }}</td>
-                        <td class="td-muted">{{ r.unidade or '—' }}</td>
-                        <td class="td-muted">{{ r.observacoes or '—' }}</td>
-                        <td>{{ r.movido_para_estoque or '—' }}</td>
-                        <td>
+                        <td class="td-id" data-label="ID">#{{ r.id }}</td>
+                        <td class="td-date" data-label="Data">{{ r.data }}</td>
+                        <td data-label="Setor">{{ r.departamento or '—' }}</td>
+                        <td class="td-muted" data-label="Diretoria">{{ r.diretoria or '—' }}</td>
+                        <td data-label="Login">{{ r.usuario or '—' }}</td>
+                        <td data-label="Tipo">{{ r.tipo or '—' }}</td>
+                        <td data-label="Marca">{{ r.marca or '—' }}</td>
+                        <td data-label="Modelo"><strong>{{ r.modelo or '—' }}</strong></td>
+                        <td class="td-muted" data-label="Processador">{{ r.processador or '—' }}</td>
+                        <td class="td-muted" data-label="Memória">{{ r.memoria or '—' }}</td>
+                        <td class="td-muted" data-label="Armazenamento">{{ r.armazenamento or '—' }}</td>
+                        <td data-label="TAG">{{ r.patrimonio or '—' }}</td>
+                        <td class="td-muted" data-label="Carregador">{{ r.possui_carregador or '—' }}</td>
+                        <td data-label="Entregue por">{{ r.nome or '—' }}</td>
+                        <td class="td-muted" data-label="Recebido por">{{ r.recebido_por or '—' }}</td>
+                        <td class="td-muted" data-label="Motivo">{{ r.motivo or '—' }}</td>
+                        <td class="td-muted" data-label="Unidade">{{ r.unidade or '—' }}</td>
+                        <td class="td-muted" data-label="Obs">{{ r.observacoes or '—' }}</td>
+                        <td data-label="Estoque">{{ r.movido_para_estoque or '—' }}</td>
+                        <td data-label="Situação">
                             {% if r.status == 'OK' %}
-                                <span class="badge ok"><span class="badge-dot"></span>OK</span>
+                                <span class="badge ok" role="status" aria-label="Status: OK"><span class="badge-dot" aria-hidden="true"></span>OK</span>
                             {% elif r.status == 'Danificado' %}
-                                <span class="badge danificado"><span class="badge-dot"></span>Danificado</span>
+                                <span class="badge danificado" role="status" aria-label="Status: Danificado"><span class="badge-dot" aria-hidden="true"></span>Danificado</span>
                             {% elif r.status in ('Aguardando Cotação','Cotação Recebida','Reparo Aprovado','Em Reparo','Concluído') %}
-                                <span class="badge" style="background:#dbeafe;color:#1e40af;"><span class="badge-dot" style="background:#1e40af;"></span>{{ r.status }}</span>
+                                <span class="badge" role="status" aria-label="Status: {{ r.status }}" style="background:#dbeafe;color:#1e40af;"><span class="badge-dot" aria-hidden="true" style="background:#1e40af;"></span>{{ r.status }}</span>
                             {% elif r.status %}
-                                <span class="badge pendente"><span class="badge-dot"></span>{{ r.status }}</span>
+                                <span class="badge pendente" role="status" aria-label="Status: {{ r.status }}"><span class="badge-dot" aria-hidden="true"></span>{{ r.status }}</span>
                             {% else %}
                                 <span class="btn-no-photo">—</span>
                             {% endif %}
                         </td>
-                        <td class="td-muted" style="font-size:11px;">
+                        <td class="td-muted" data-label="Chamado Dell" style="font-size:11px;">
                             {% if r.chamado_dell %}
                                 <span style="background:#eff6ff;color:#1e40af;padding:2px 8px;border-radius:5px;font-weight:600;font-size:11px;">{{ r.chamado_dell }}</span>
                             {% else %}
@@ -1177,8 +1197,9 @@
                                 </form>
                             {% endif %}
                         </td>
-                        <td class="td-muted" style="font-size:11px;">{{ r.email_enviado_em or '—' }}</td>
-                        <td>
+                        <td class="td-muted" data-label="Email" style="font-size:11px;">{{ r.email_enviado_em or '—' }}</td>
+                        <td class="td-muted" data-label="Registrado Por" style="font-size:11px;">{{ r.registrado_por or '—' }}</td>
+                        <td data-label="Foto">
                             {% if r.foto %}
                                 <a href="{{ url_for('visualizar_foto', filename=r.foto.split('/')[-1]) }}"
                                    class="btn-photo">&#128247; Ver</a>
@@ -1186,7 +1207,7 @@
                                 <span class="btn-no-photo">—</span>
                             {% endif %}
                         </td>
-                        <td>
+                        <td data-label="Ações">
                             <div class="actions-cell">
                                 <a href="{{ url_for('editar_devolucao', id_devolucao=r.id) }}" class="btn-edit">&#9998; Editar</a>
                                 <button type="button" class="btn-del"

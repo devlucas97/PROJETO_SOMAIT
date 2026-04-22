@@ -1,3 +1,4 @@
+import json
 import os
 import pytest
 import app.database as database
@@ -194,6 +195,29 @@ def test_nova_devolucao_exibe_aviso_quando_excel_esta_bloqueado(client, monkeypa
     assert b"planilha Excel" in response.data
 
 
+def test_configuracoes_post_salva_arquivo_de_config(client, monkeypatch, tmp_path):
+    import app.web as web
+
+    config_path = tmp_path / "config.json"
+    monkeypatch.setattr(web, "iter_config_paths", lambda: iter([str(config_path)]))
+
+    response = client.post(
+        "/configuracoes",
+        data=_with_csrf({
+            "planilha_empresa": "/tmp/empresa.xlsx",
+            "email_rh": "rh@empresa.com",
+        }),
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert config_path.exists()
+
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    assert saved["planilha_empresa"] == "/tmp/empresa.xlsx"
+    assert saved["email_rh"] == "rh@empresa.com"
+
+
 def test_configuracoes_exibe_alerta_para_caminho_incompativel(client, monkeypatch):
     import app.web as web
 
@@ -217,4 +241,133 @@ def test_configuracoes_exibe_alerta_para_caminho_incompativel(client, monkeypatc
     assert response.status_code == 200
     assert b"Caminho Windows detectado" in response.data
     assert b"Linux / container" in response.data
+
+
+def test_editar_registro_via_web(client, monkeypatch):
+    import app.web as web
+
+    monkeypatch.setattr(web, "OUTLOOK_DISPONIVEL", False)
+
+    # Cria um registro
+    client.post(
+        "/nova",
+        data=_with_csrf({
+            "usuario": "joao.silva",
+            "nome": "Joao Silva",
+            "matricula": "12345",
+            "departamento": "TI",
+            "patrimonio": "PT-EDIT",
+            "modelo": "Latitude 5520",
+            "serial": "ABC1234",
+            "status": "OK",
+            "motivo": "Teste",
+            "diretoria": "Operacoes",
+            "tipo": "Notebook",
+            "marca": "Dell",
+        }),
+        follow_redirects=False,
+    )
+
+    registros = database.listar()
+    reg_id = registros[0]["id"]
+
+    # Edita
+    response = client.post(
+        f"/editar/{reg_id}",
+        data=_with_csrf({
+            "usuario": "joao.silva",
+            "nome": "Joao Silva Updated",
+            "matricula": "12345",
+            "departamento": "RH",
+            "patrimonio": "PT-EDIT",
+            "modelo": "Latitude 5520",
+            "serial": "ABC1234",
+            "status": "Danificado",
+            "motivo": "Queda",
+            "diretoria": "Operacoes",
+            "tipo": "Notebook",
+            "marca": "Dell",
+        }),
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    atualizado = database.buscar_por_id(reg_id)
+    assert atualizado["nome"] == "Joao Silva Updated"
+    assert atualizado["status"] == "Danificado"
+
+
+def test_excluir_registro_via_web(client, monkeypatch):
+    import app.web as web
+
+    monkeypatch.setattr(web, "OUTLOOK_DISPONIVEL", False)
+
+    client.post(
+        "/nova",
+        data=_with_csrf({
+            "usuario": "joao.silva",
+            "nome": "Joao Silva",
+            "matricula": "12345",
+            "departamento": "TI",
+            "patrimonio": "PT-DEL",
+            "modelo": "Latitude 5520",
+            "serial": "ABC1234",
+            "status": "OK",
+            "motivo": "Teste",
+            "diretoria": "Operacoes",
+            "tipo": "Notebook",
+            "marca": "Dell",
+        }),
+        follow_redirects=False,
+    )
+
+    registros = database.listar()
+    reg_id = registros[0]["id"]
+
+    response = client.post(
+        f"/excluir/{reg_id}",
+        data=_with_csrf({}),
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert database.buscar_por_id(reg_id) is None
+
+
+def test_chamado_dell_via_web(client, monkeypatch):
+    import app.web as web
+
+    monkeypatch.setattr(web, "OUTLOOK_DISPONIVEL", False)
+
+    client.post(
+        "/nova",
+        data=_with_csrf({
+            "usuario": "joao.silva",
+            "nome": "Joao Silva",
+            "matricula": "12345",
+            "departamento": "TI",
+            "patrimonio": "PT-DELL",
+            "modelo": "Latitude 5520",
+            "serial": "ABC1234",
+            "status": "Danificado",
+            "motivo": "Dano",
+            "diretoria": "Operacoes",
+            "tipo": "Notebook",
+            "marca": "Dell",
+        }),
+        follow_redirects=False,
+    )
+
+    registros = database.listar()
+    reg_id = registros[0]["id"]
+
+    response = client.post(
+        f"/chamado_dell/{reg_id}",
+        data=_with_csrf({"chamado": "OS-99999"}),
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    atualizado = database.buscar_por_id(reg_id)
+    assert atualizado["chamado_dell"] == "OS-99999"
 

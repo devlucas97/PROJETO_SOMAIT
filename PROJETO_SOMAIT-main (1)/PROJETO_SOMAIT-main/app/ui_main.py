@@ -15,12 +15,9 @@ import getpass
 from app.logging_config import get_logger
 from app.database import inserir, listar, registrar_email_enviado
 from app.email_service import (
-    EMAIL_DELL,
     EMAIL_RH,
     OUTLOOK_DISPONIVEL,
     email_cotacao_dell,
-    email_dano,
-    enviar_email,
     enviar_email_rh,
 )
 from app.runtime_paths import ensure_runtime_dir, get_runtime_path, iter_config_paths
@@ -327,6 +324,7 @@ class MainWindow(QMainWindow):
             return
 
         dados["usuario"] = usuario
+        dados["registrado_por"] = usuario
 
         # Salvar foto localmente antes de gravar, para persistir e anexar corretamente.
         if self.caminho_foto and dados["status"] == "Danificado":
@@ -350,13 +348,11 @@ class MainWindow(QMainWindow):
             try:
                 email_rh_dest = _cfg().get("email_rh") or EMAIL_RH
                 destino_log = "RH"
-                if dados["status"] == "Danificado":
-                    email_dano(dados)
-                    destino_log = "Dell"
+                if dados["status"] == "Danificado" and marca_lower == "dell":
+                    email_cotacao_dell(dados)
+                    destino_log = "Cotação Dell + RH"
 
                 enviar_email_rh(dados, para=email_rh_dest)
-                if dados["status"] == "Danificado":
-                    destino_log += " + RH"
                 email_sync_error = registrar_email_enviado(novo_id, destino_log)
                 QMessageBox.information(
                     self,

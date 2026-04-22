@@ -248,10 +248,6 @@ def email_cotacao_dell(dados):
     patrimonio    = dados.get("patrimonio", "").strip()
     email_resp    = (dados.get("email_responsavel") or "").strip()
     gestor_email  = (dados.get("gestor_email") or "").strip()
-    cotacao_para  = dados.get("recebido_por") or dados.get("nome") or ""
-    if email_resp:
-        cotacao_para = f"{cotacao_para} <{email_resp}>".strip(" <>")
-        cotacao_para = cotacao_para if cotacao_para != f"<{email_resp}>" else email_resp
 
     mail = _get_outlook_mail()
     mail.To      = EMAIL_DELL
@@ -263,17 +259,15 @@ def email_cotacao_dell(dados):
     if cc_list:
         mail.CC = "; ".join(cc_list)
     mail.Subject = (
-        f"Solicitação de Cotação de Reparo — Dell {modelo} | "
-        f"Service Tag: {serial} | TAG: {patrimonio}"
+        f"REPARO DE EQUIPAMENTO - DELL {modelo} - SERVICE TAG: {serial}"
     )
 
     corpo = (
         f"Boa tarde, prezados.\n\n"
-        f"Solicito cotação de reparo do equipamento Dell {modelo} "
-        f"- Service Tag: {serial}\n\n"
-        f"Cotação para: {cotacao_para}\n\n"
-        f"Segue em anexo as imagens.\n\n\n\n"
-        f"TAG INTERNA {patrimonio}\n"
+        f"Solicito cotação de reparo do equipamento Dell {modelo} - Service Tag: {serial}\n\n"
+        f" \n"
+        f"Cotação para:\n\n"
+        f"Segue em anexo as imagens. TAG INTERNA {patrimonio}\n"
         f"O chamado em questão é para uma empresa de CNPJ : {CNPJ_EMPRESA}"
     )
     mail.Body = corpo
@@ -310,36 +304,38 @@ def enviar_email_rh(dados, para=None):
 
     mail = _get_outlook_mail()
     mail.To = destino
-    mail.Subject = (
-        f"[AZZAS TI] Devolução de Equipamento — {dados.get('nome', '')} | "
-        f"{dados.get('matricula', '')} | {dados.get('departamento', '')}"
+
+    cc_list = []
+    email_resp  = (dados.get("email_responsavel") or "").strip()
+    gestor_email = (dados.get("gestor_email") or "").strip()
+    if email_resp:
+        cc_list.append(email_resp)
+    if gestor_email and gestor_email not in cc_list:
+        cc_list.append(gestor_email)
+    if cc_list:
+        mail.CC = "; ".join(cc_list)
+
+    mail.Subject = f"[DEVOLUÇÃO DE EQUIPAMENTO] Confirmação de Entrega - {dados.get('nome', '')}"
+
+    corpo = (
+        f"Prezados(as), Gestão da {dados.get('departamento', '')} e Time do Gente & Gestão,\n"
+        f"Comunicamos que a colaboradora {dados.get('recebido_por', '')} realizou a devolução do equipamento da colaboradora que foi desligada cujas informações estão presentes abaixo:\n"
+        f"Confirmações:\n"
+        f"Colaborador: {dados.get('nome', '')}\n"
+        f"Data da Entrega: {dados.get('data', '')}\n"
+        f"Equipamento Entregue: {dados.get('tipo', '')} Modelo: {dados.get('modelo', '')}\n"
+        f"Status: O equipamento foi recebido pelo Departamento de TI e passará pelos procedimentos internos de higienização e reconfiguração.\n"
+        f"Checklist de Verificação:\n"
+        f"[  ] Notebook\n"
+        f"[  ] Fonte\n"
+        f"[  ] Dongle/Adaptadores/Mesa digitalizadora (marcar se aplicável)\n"
+        f"[  ] Equipamento sem avarias físicas aparentes \n"
+        f"Com essa etapa formalmente concluída, solicitamos que o Time de Gente & Gestão prossiga com os próximos trâmites para a disponibilização do equipamento para a vaga que será resposta.\n"
+        f"Estamos à disposição para quaisquer esclarecimentos adicionais.\n"
+        f"Atenciosamente,"
     )
 
-    linhas = (
-        _row("Data / Hora",       dados.get("data"))
-        + _row("Nome Completo",   dados.get("nome"))
-        + _row("Matrícula",       dados.get("matricula"))
-        + _row("Setor",           dados.get("departamento"))
-        + _row("Diretoria",       dados.get("diretoria"))
-        + _row("Login de Rede",   dados.get("usuario"))
-        + _row("Unidade",         dados.get("unidade"))
-        + _row("Tipo",            dados.get("tipo"))
-        + _row("Marca",           dados.get("marca"))
-        + _row("Modelo",          dados.get("modelo"))
-        + _row("TAG (Patrimônio)", dados.get("patrimonio"))
-        + _row("Serial / S.Tag",  dados.get("serial"))
-        + _row("Situação",        dados.get("status"))
-        + _row("Motivo",          dados.get("motivo"))
-        + _row("Recebido Por",    dados.get("recebido_por"))
-        + _row("Observações",     dados.get("observacoes"))
-    )
-
-    mail.HTMLBody = _html_base(
-        titulo="Devolução de Equipamento — Comunicado ao RH",
-        subtitulo=f"O colaborador {dados.get('nome', '')} devolveu um equipamento ao setor de TI.",
-        cor_topo="#1e3a8a",
-        linhas_tabela=linhas,
-    )
+    mail.Body = corpo
 
     try:
         mail.Display()
